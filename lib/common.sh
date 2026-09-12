@@ -14,3 +14,7 @@ require_value() {
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
+
+require_root() {
+    [[ ${EUID:-1} -eq 0 ]] || die "Run this command as root"
+}

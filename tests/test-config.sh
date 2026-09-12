@@ -8,6 +8,7 @@ ROOT_DIR=$(cd -- "$TEST_DIR/.." && pwd)
 source "$ROOT_DIR/lib/common.sh"
 # shellcheck source=../lib/config.sh
 source "$ROOT_DIR/lib/config.sh"
+source "$ROOT_DIR/lib/security.sh"
 
 assert_true() {
     "$@" || { printf 'Assertion failed: %s\n' "$*" >&2; exit 1; }
@@ -28,5 +29,10 @@ assert_true is_base_domain example.free-dns.tld
 assert_false is_base_domain localhost
 assert_false is_base_domain '-bad.example'
 [[ $(make_hostname 'Example.Free-DNS.TLD' 'VPN') == 'vpn.example.free-dns.tld' ]]
+assert_true validate_tcp_port 1
+assert_true validate_tcp_port 65535
+assert_false validate_tcp_port 0
+assert_false validate_tcp_port 65536
+assert_false validate_tcp_port ssh
 
 printf 'config tests passed\n'
