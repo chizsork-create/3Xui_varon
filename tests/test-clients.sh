@@ -16,6 +16,8 @@ source "$ROOT_DIR/lib/xui-api.sh"
 source "$ROOT_DIR/lib/inbounds.sh"
 # shellcheck source=../lib/subscription.sh
 source "$ROOT_DIR/lib/subscription.sh"
+# shellcheck source=../lib/panel.sh
+source "$ROOT_DIR/lib/panel.sh"
 
 vless=$(build_vless_client_json '11111111-1111-4111-8111-111111111111' 'varon' 'sub123' 42)
 trojan=$(build_trojan_client_json 'secret' 'varon' 'sub123' 42)
@@ -39,6 +41,8 @@ jq --exit-status -e '
 [[ $(normalize_web_base_path '/varon/') == 'varon' ]]
 [[ $(xui_panel_url 'vpn.example.test' 'varon') == 'https://vpn.example.test/varon' ]]
 [[ $(xui_api_url 'vpn.example.test' 'varon' '/clients/add') == 'https://vpn.example.test/varon/panel/api/clients/add' ]]
+[[ $(xui_local_panel_url 2053 'varon') == 'http://127.0.0.1:2053/varon' ]]
+[[ $(xui_local_api_url 2053 'varon' '/clients/add') == 'http://127.0.0.1:2053/varon/panel/api/clients/add' ]]
 xui_success_response <<<'{"success":true}'
 if xui_success_response <<<'{"success":false}'; then
     printf 'A failed API response was accepted\n' >&2
@@ -56,6 +60,8 @@ jq --exit-status -e '.listen == "/run/3xui-varon/xhttp.sock,0660" and .port == 0
 jq --exit-status -e '.protocol == "trojan" and .listen == "127.0.0.1" and (.streamSettings | fromjson | .grpcSettings.serviceName == "trojanpath")' <<<"$trojan" >/dev/null
 jq --exit-status -e '.inboundIds == [2, 3] and .port == 443 and .security == "tls" and .sni == "vpn.example.test"' <<<"$tls_hosts" >/dev/null
 jq --exit-status -e '.inboundIds == [1] and .security == "same"' <<<"$reality_hosts" >/dev/null
+settings=$(build_subscription_settings_payload '{"webPort":2053,"subEnable":false}' 'vpn.example.test' 'SubPath01')
+jq --exit-status -e '.webListen == "127.0.0.1" and .subListen == "127.0.0.1" and .subPort == 2096 and .subURI == "https://vpn.example.test/SubPath01/"' <<<"$settings" >/dev/null
 [[ $(build_subscription_url 'vpn.example.test' 'subroute123' 'sub123') == 'https://vpn.example.test/subroute123/sub123' ]]
 subscription_contains_all_transports <<<'vless://one?type=reality
 vless://two?type=xhttp

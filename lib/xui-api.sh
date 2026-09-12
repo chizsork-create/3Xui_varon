@@ -73,6 +73,64 @@ xui_api_post() {
     printf '%s\n' "$response"
 }
 
+xui_local_panel_url() {
+    local port=$1 web_base_path=$2
+    validate_tcp_port "$port" || die "Invalid local panel port"
+    printf 'http://127.0.0.1:%s/%s\n' "$port" "$(normalize_web_base_path "$web_base_path")"
+}
+
+xui_local_api_url() {
+    local port=$1 web_base_path=$2 endpoint=$3
+    printf '%s/panel/api/%s\n' "$(xui_local_panel_url "$port" "$web_base_path")" "${endpoint#/}"
+}
+
+xui_local_login() {
+    local port=$1 web_base_path=$2 username=$3 password=$4
+    local cookie_file request_file response
+
+    command_exists curl || die "curl is required"
+    cookie_file=$(mktemp)
+    request_file=$(mktemp)
+    chmod 0600 "$cookie_file" "$request_file"
+    jq --null-input --arg username "$username" --arg password "$password" \
+        '{username: $username, password: $password}' >"$request_file"
+
+    response=$(curl --fail --silent --show-error \
+        --cookie-jar "$cookie_file" \
+        --header 'Content-Type: application/json' \
+        --data-binary "@$request_file" \
+        "$(xui_local_panel_url "$port" "$web_base_path")/login") || {
+        rm -f -- "$cookie_file" "$request_file"
+        die "Local 3X-UI login request failed"
+    }
+    rm -f -- "$request_file"
+    xui_success_response <<<"$response" || {
+        rm -f -- "$cookie_file"
+        die "3X-UI rejected the bootstrap session"
+    }
+    printf '%s\n' "$cookie_file"
+}
+
+xui_local_api_post() {
+    local port=$1 web_base_path=$2 cookie_file=$3 endpoint=$4 payload=$5
+    local request_file response
+
+    request_file=$(mktemp)
+    chmod 0600 "$request_file"
+    printf '%s\n' "$payload" >"$request_file"
+    response=$(curl --fail --silent --show-error \
+        --cookie "$cookie_file" \
+        --header 'Content-Type: application/json' \
+        --data-binary "@$request_file" \
+        "$(xui_local_api_url "$port" "$web_base_path" "$endpoint")") || {
+        rm -f -- "$request_file"
+        die "Local 3X-UI API request failed: $endpoint"
+    }
+    rm -f -- "$request_file"
+    xui_success_response <<<"$response" || die "3X-UI rejected local API request: $endpoint"
+    printf '%s\n' "$response"
+}
+
 xui_create_shared_client() {
     local hostname=$1 web_base_path=$2 cookie_file=$3 payload=$4
 

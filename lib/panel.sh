@@ -48,3 +48,43 @@ write_panel_state() {
     atomic_install_file "$temporary_state" "$destination" 0600
     rm -f -- "$temporary_state"
 }
+
+build_subscription_settings_payload() {
+    local existing_settings=$1 panel_host=$2 subscription_path=$3
+    local normalized_path
+
+    normalized_path=$(normalize_subscription_path "$subscription_path")
+    jq --compact-output \
+        --arg panel_host "$panel_host" --arg subscription_path "/${normalized_path}/" \
+        '. + {
+            webListen: "127.0.0.1",
+            webDomain: $panel_host,
+            subEnable: true,
+            subListen: "127.0.0.1",
+            subPort: 2096,
+            subPath: $subscription_path,
+            subDomain: $panel_host,
+            subCertFile: "",
+            subKeyFile: "",
+            subURI: ("https://" + $panel_host + $subscription_path),
+            trustedProxyCIDRs: "127.0.0.1/32,::1/128"
+        }' <<<"$existing_settings"
+}
+
+configure_panel_subscription_service() {
+    local panel_path=$1 panel_host=$2 subscription_path=$3 cookie_file response settings payload
+
+    cookie_file=$(xui_local_login "$VARON_PANEL_INTERNAL_PORT" "$panel_path" \
+        "$VARON_PANEL_USERNAME" "$VARON_PANEL_PASSWORD")
+    response=$(xui_local_api_post "$VARON_PANEL_INTERNAL_PORT" "$panel_path" \
+        "$cookie_file" setting/all '{}')
+    settings=$(jq --exit-status --compact-output '.obj' <<<"$response") || {
+        rm -f -- "$cookie_file"
+        die "3X-UI did not return its settings"
+    }
+    payload=$(build_subscription_settings_payload "$settings" "$panel_host" "$subscription_path")
+    xui_local_api_post "$VARON_PANEL_INTERNAL_PORT" "$panel_path" \
+        "$cookie_file" setting/update "$payload" >/dev/null
+    rm -f -- "$cookie_file"
+    ok "Subscription service is bound to 127.0.0.1"
+}
