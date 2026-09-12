@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+VARON_WEB_TLS_PORT=${VARON_WEB_TLS_PORT:-7443}
+VARON_COVER_ROOT=${VARON_COVER_ROOT:-/var/www/3xui-varon}
+VARON_NGINX_HTTP_CONFIG=${VARON_NGINX_HTTP_CONFIG:-/etc/nginx/conf.d/3xui-varon-http.conf}
+VARON_NGINX_WEB_CONFIG=${VARON_NGINX_WEB_CONFIG:-/etc/nginx/conf.d/3xui-varon-web.conf}
+VARON_NGINX_STREAM_CONFIG=${VARON_NGINX_STREAM_CONFIG:-/etc/nginx/stream-conf.d/3xui-varon.conf}
+VARON_NGINX_STREAM_INCLUDE='include /etc/nginx/stream-conf.d/*.conf;'
+
 render_xhttp_proxy_location() {
     local path_segment=$1 socket_path=$2 server_name=$3
 
@@ -24,6 +31,8 @@ location ^~ /${path_segment} {
     proxy_read_timeout 1h;
     proxy_send_timeout 1h;
     client_max_body_size 0;
+}
+EOF
 }
 
 render_panel_proxy_location() {
@@ -86,8 +95,6 @@ location ^~ /${service_name} {
 }
 EOF
 }
-EOF
-}
 
 render_stream_config() {
     local panel_host=$1 reality_host=$2 web_tls_port=$3 reality_port=$4
@@ -98,6 +105,23 @@ map \$ssl_preread_server_name \$varon_sni_backend {
     ${reality_host} varon_reality;
     ${panel_host} varon_web;
     default varon_web;
+}
+
+upstream varon_reality {
+    server 127.0.0.1:${reality_port};
+}
+
+upstream varon_web {
+    server 127.0.0.1:${web_tls_port};
+}
+
+server {
+    listen 443;
+    proxy_protocol on;
+    proxy_pass \$varon_sni_backend;
+    ssl_preread on;
+}
+EOF
 }
 
 render_acme_http_vhost() {
@@ -118,23 +142,6 @@ server {
     location / {
         return 301 https://\$host\$request_uri;
     }
-}
-EOF
-}
-
-upstream varon_reality {
-    server 127.0.0.1:${reality_port};
-}
-
-upstream varon_web {
-    server 127.0.0.1:${web_tls_port};
-}
-
-server {
-    listen 443;
-    proxy_protocol on;
-    proxy_pass \$varon_sni_backend;
-    ssl_preread on;
 }
 EOF
 }
@@ -177,4 +184,57 @@ ensure_xhttp_runtime_directory() {
     require_root
     getent group www-data >/dev/null || die "www-data group is missing"
     install -d -o root -g www-data -m 2710 /run/3xui-varon
+}
+
+ensure_nginx_stream_include() {
+    local temporary_config
+
+    require_root
+    [[ -r /etc/nginx/nginx.conf ]] || die "nginx.conf is missing"
+    grep -Fqx "$VARON_NGINX_STREAM_INCLUDE" /etc/nginx/nginx.conf && return 0
+
+    temporary_config=$(mktemp)
+    cp /etc/nginx/nginx.conf "$temporary_config"
+    printf '\n%s\n' "$VARON_NGINX_STREAM_INCLUDE" >>"$temporary_config"
+    atomic_install_file "$temporary_config" /etc/nginx/nginx.conf 0644
+    rm -f -- "$temporary_config"
+}
+
+install_acme_http_vhost() {
+    local panel_host=$1 temporary_config
+
+    require_root
+    install -d -o root -g root -m 0755 "$VARON_COVER_ROOT"
+    temporary_config=$(mktemp)
+    render_acme_http_vhost "$panel_host" "$VARON_COVER_ROOT" >"$temporary_config"
+    atomic_install_file "$temporary_config" "$VARON_NGINX_HTTP_CONFIG" 0644
+    rm -f -- "$temporary_config"
+    nginx -t
+    systemctl reload nginx
+}
+
+install_nginx_proxy_stack() {
+    local panel_host=$1 reality_host=$2 certificate_file=$3 key_file=$4
+    local temporary_web temporary_stream
+
+    require_root
+    validate_tcp_port "$VARON_WEB_TLS_PORT" || die "Invalid Nginx TLS port"
+    ensure_xhttp_runtime_directory
+    install -d -o root -g root -m 0755 /etc/nginx/stream-conf.d
+    ensure_nginx_stream_include
+
+    temporary_web=$(mktemp)
+    temporary_stream=$(mktemp)
+    render_web_vhost "$panel_host" "$VARON_WEB_TLS_PORT" "$certificate_file" "$key_file" \
+        "$VARON_COVER_ROOT" "$VARON_XHTTP_PATH" "$VARON_XHTTP_SOCKET" \
+        "$VARON_PANEL_PATH" "$VARON_PANEL_INTERNAL_PORT" "$VARON_SUBSCRIPTION_PATH" \
+        "$VARON_SUBSCRIPTION_INTERNAL_PORT" "$VARON_TROJAN_SERVICE" \
+        "$VARON_TROJAN_INTERNAL_PORT" >"$temporary_web"
+    render_stream_config "$panel_host" "$reality_host" "$VARON_WEB_TLS_PORT" \
+        "$VARON_REALITY_INTERNAL_PORT" >"$temporary_stream"
+    atomic_install_file "$temporary_web" "$VARON_NGINX_WEB_CONFIG" 0644
+    atomic_install_file "$temporary_stream" "$VARON_NGINX_STREAM_CONFIG" 0644
+    rm -f -- "$temporary_web" "$temporary_stream"
+    nginx -t
+    systemctl reload nginx
 }

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# 3Xui Varon entry point. Commands are intentionally read-only until install is
-# implemented and covered by a test deployment.
 set -Eeuo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -12,19 +10,125 @@ source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/lib/config.sh"
 # shellcheck source=../lib/preflight.sh
 source "$ROOT_DIR/lib/preflight.sh"
+# shellcheck source=../lib/state.sh
+source "$ROOT_DIR/lib/state.sh"
+# shellcheck source=../lib/security.sh
+source "$ROOT_DIR/lib/security.sh"
+# shellcheck source=../lib/packages.sh
+source "$ROOT_DIR/lib/packages.sh"
+# shellcheck source=../lib/release.sh
+source "$ROOT_DIR/lib/release.sh"
+# shellcheck source=../lib/clients.sh
+source "$ROOT_DIR/lib/clients.sh"
+# shellcheck source=../lib/xui-api.sh
+source "$ROOT_DIR/lib/xui-api.sh"
+# shellcheck source=../lib/panel.sh
+source "$ROOT_DIR/lib/panel.sh"
+# shellcheck source=../lib/inbounds.sh
+source "$ROOT_DIR/lib/inbounds.sh"
+# shellcheck source=../lib/provision.sh
+source "$ROOT_DIR/lib/provision.sh"
+# shellcheck source=../lib/nginx.sh
+source "$ROOT_DIR/lib/nginx.sh"
+# shellcheck source=../lib/certificates.sh
+source "$ROOT_DIR/lib/certificates.sh"
+# shellcheck source=../lib/subscription.sh
+source "$ROOT_DIR/lib/subscription.sh"
 
 usage() {
     cat <<'EOF'
 Usage:
   varon preflight --base-domain DOMAIN --panel-subdomain NAME [--reality-subdomain NAME]
+  varon install [--base-domain DOMAIN] [--panel-subdomain NAME] [--reality-subdomain NAME] \
+    [--email EMAIL] [--ssh-port PORT] [--client-name NAME] [--yes]
 
 Examples:
   varon preflight --base-domain example.free-dns.tld --panel-subdomain vpn
-  varon preflight --base-domain example.free-dns.tld --panel-subdomain vpn --reality-subdomain reality
+  varon install --base-domain example.free-dns.tld --panel-subdomain vpn --email you@example.net
 
-The preflight command is read-only. It validates Ubuntu, names, DNS and the
-public ports needed for a future installation; it never changes the server.
+Install only supports a clean Ubuntu 24.04 server. It asks for the base domain,
+panel subdomain, REALITY subdomain and Let's Encrypt email when values are not
+provided. It creates one shared subscription containing Reality, XHTTP and
+Trojan gRPC. Existing 3X-UI installations are never upgraded or overwritten.
 EOF
+}
+
+prompt_if_missing() {
+    local variable_name=$1 prompt=$2 value=${!1}
+
+    if [[ -z $value ]]; then
+        read -r -p "$prompt" value
+        printf -v "$variable_name" '%s' "$value"
+    fi
+}
+
+confirm_clean_install() {
+    local answer
+
+    [[ $assume_yes == true ]] && return 0
+    read -r -p 'Clean Ubuntu 24.04 server required. Type INSTALL to continue: ' answer
+    [[ $answer == INSTALL ]] || die "Installation cancelled"
+}
+
+run_install() {
+    local panel_host reality_host certificate_file certificate_key subscription_url
+
+    require_root
+    prompt_if_missing base_domain 'Base domain (for example mydomain.free-dns.tld): '
+    prompt_if_missing panel_subdomain 'Panel/subscription subdomain (for example vpn): '
+    prompt_if_missing reality_subdomain 'REALITY subdomain (for example reality): '
+    prompt_if_missing certbot_email "Let's Encrypt email: "
+    validate_email_address "$certbot_email" || die "Invalid Let's Encrypt email"
+    validate_client_name "$client_name" || die "Invalid client name"
+    validate_tcp_port "$ssh_port" || die "Invalid SSH port"
+    validate_domain_inputs "$base_domain" "$panel_subdomain" "$reality_subdomain"
+    confirm_clean_install
+    assert_clean_3xui_target
+
+    panel_host=$(make_hostname "$base_domain" "$panel_subdomain")
+    reality_host=$(make_hostname "$base_domain" "$reality_subdomain")
+    VARON_CERTBOT_EMAIL=$certbot_email
+
+    run_preflight "$base_domain" "$panel_subdomain" "$reality_subdomain"
+    install_required_packages
+    configure_security_updates
+    configure_fail2ban
+    configure_ufw "$ssh_port"
+
+    install_acme_http_vhost "$panel_host"
+    issue_lets_encrypt_certificate "$panel_host" "$VARON_COVER_ROOT"
+    certificate_file=$(certificate_file_for_host "$panel_host")
+    certificate_key=$(certificate_key_for_host "$panel_host")
+
+    install_pinned_3xui_release
+    VARON_PANEL_PATH=$(generate_client_token 12)
+    VARON_SUBSCRIPTION_PATH=$(generate_client_token 12)
+    generate_panel_credentials
+    create_default_client_material "$client_name"
+    generate_transport_identifiers
+    generate_reality_keypair
+    configure_fresh_panel "$VARON_PANEL_PATH"
+    systemctl enable --now x-ui
+    wait_for_local_panel "$VARON_PANEL_PATH"
+    configure_panel_subscription_service "$VARON_PANEL_PATH" "$panel_host" "$VARON_SUBSCRIPTION_PATH"
+    systemctl restart x-ui
+    wait_for_local_panel "$VARON_PANEL_PATH"
+
+    install_nginx_proxy_stack "$panel_host" "$reality_host" "$certificate_file" "$certificate_key"
+    provision_default_transports "$panel_host" "$reality_host" "$certificate_file" "$certificate_key"
+    install_certificate_renew_hook
+
+    write_install_state "$base_domain" "$panel_host" "$reality_host" "$ssh_port"
+    write_panel_state "$VARON_STATE_DIR/panel.env"
+    write_client_state "$VARON_STATE_DIR/client.env"
+    write_transport_state "$VARON_STATE_DIR/transports.env"
+    subscription_url=$(build_subscription_url "$panel_host" "$VARON_SUBSCRIPTION_PATH" "$VARON_CLIENT_SUB_ID")
+    verify_subscription_url "$panel_host" "$VARON_SUBSCRIPTION_PATH" "$VARON_CLIENT_SUB_ID"
+
+    ok "Installation finished"
+    info "Panel URL: $(xui_panel_url "$panel_host" "$VARON_PANEL_PATH")"
+    info "Subscription URL: $subscription_url"
+    info "Panel credentials are root-only: $VARON_STATE_DIR/panel.env"
 }
 
 command_name=${1:-}
@@ -34,6 +138,10 @@ shift
 base_domain=""
 panel_subdomain=""
 reality_subdomain="reality"
+certbot_email=""
+ssh_port="22"
+client_name="varon"
+assume_yes=false
 
 while (($#)); do
     case "$1" in
@@ -48,6 +156,22 @@ while (($#)); do
         --reality-subdomain)
             reality_subdomain=${2:?"--reality-subdomain requires a value"}
             shift 2
+            ;;
+        --email)
+            certbot_email=${2:?"--email requires a value"}
+            shift 2
+            ;;
+        --ssh-port)
+            ssh_port=${2:?"--ssh-port requires a value"}
+            shift 2
+            ;;
+        --client-name)
+            client_name=${2:?"--client-name requires a value"}
+            shift 2
+            ;;
+        --yes)
+            assume_yes=true
+            shift
             ;;
         -h|--help)
             usage
@@ -64,6 +188,9 @@ case "$command_name" in
         require_value "--base-domain" "$base_domain"
         require_value "--panel-subdomain" "$panel_subdomain"
         run_preflight "$base_domain" "$panel_subdomain" "$reality_subdomain"
+        ;;
+    install)
+        run_install
         ;;
     *)
         die "Unknown command: $command_name"

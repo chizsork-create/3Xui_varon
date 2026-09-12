@@ -35,6 +35,19 @@ configure_fresh_panel() {
     ok "3X-UI bootstrap is restricted to 127.0.0.1"
 }
 
+wait_for_local_panel() {
+    local panel_path=$1 attempt
+
+    for attempt in {1..30}; do
+        if curl --fail --silent --show-error --max-time 2 \
+            "$(xui_local_panel_url "$VARON_PANEL_INTERNAL_PORT" "$panel_path")/" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    die "3X-UI did not start on its loopback listener"
+}
+
 write_panel_state() {
     local destination=$1 temporary_state
 

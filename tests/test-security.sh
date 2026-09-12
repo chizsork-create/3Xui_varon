@@ -48,9 +48,17 @@ grep -Fqx '    grpc_pass grpc://127.0.0.1:1443;' <<<"$trojan_location"
 stream_config=$(render_stream_config 'vpn.example.free-dns.tld' 'reality.example.free-dns.tld' 7443 8443)
 grep -Fqx '    reality.example.free-dns.tld varon_reality;' <<<"$stream_config"
 grep -Fqx '    server 127.0.0.1:7443;' <<<"$stream_config"
+grep -Fqx '    proxy_protocol on;' <<<"$stream_config"
 
 acme_vhost=$(render_acme_http_vhost 'vpn.example.free-dns.tld' '/var/www/3xui-varon')
 grep -Fqx '    listen 80;' <<<"$acme_vhost"
 grep -Fqx '    location ^~ /.well-known/acme-challenge/ {' <<<"$acme_vhost"
+
+web_vhost=$(render_web_vhost 'vpn.example.free-dns.tld' 7443 '/cert.pem' '/key.pem' \
+    '/var/www/3xui-varon' 'XhttpPath1' '/run/3xui-varon/xhttp.sock' 'PanelPath1' \
+    2053 'SubPath01' 2096 'TrojanSvc1' 1443)
+grep -Fqx '    listen 127.0.0.1:7443 ssl http2 proxy_protocol;' <<<"$web_vhost"
+grep -Fqx '    proxy_pass https://unix:/run/3xui-varon/xhttp.sock:;' <<<"$web_vhost"
+grep -Fqx '    grpc_pass grpc://127.0.0.1:1443;' <<<"$web_vhost"
 
 printf 'security tests passed\n'

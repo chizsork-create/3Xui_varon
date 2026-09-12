@@ -69,14 +69,18 @@ assert_3xui_release_layout() {
         || die "3X-UI archive does not contain Debian systemd unit"
 }
 
+assert_clean_3xui_target() {
+    [[ ! -e /usr/local/x-ui && ! -e /etc/systemd/system/x-ui.service ]] \
+        || die "3X-UI already exists; this installer only supports a clean install"
+}
+
 install_pinned_3xui_release() (
     local temporary_dir archive_file release_root
 
     require_root
     command_exists tar || die "tar is required"
     command_exists systemctl || die "systemctl is required"
-    [[ ! -e /usr/local/x-ui && ! -e /etc/systemd/system/x-ui.service ]] \
-        || die "3X-UI already exists; this installer only supports a clean install"
+    assert_clean_3xui_target
 
     temporary_dir=$(mktemp -d)
     trap 'rm -rf -- "$temporary_dir"' EXIT

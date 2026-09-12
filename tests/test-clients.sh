@@ -18,6 +18,8 @@ source "$ROOT_DIR/lib/inbounds.sh"
 source "$ROOT_DIR/lib/subscription.sh"
 # shellcheck source=../lib/panel.sh
 source "$ROOT_DIR/lib/panel.sh"
+# shellcheck source=../lib/provision.sh
+source "$ROOT_DIR/lib/provision.sh"
 
 vless=$(build_vless_client_json '11111111-1111-4111-8111-111111111111' 'varon' 'sub123' 42)
 trojan=$(build_trojan_client_json 'secret' 'varon' 'sub123' 42)
@@ -62,6 +64,10 @@ jq --exit-status -e '.inboundIds == [2, 3] and .port == 443 and .security == "tl
 jq --exit-status -e '.inboundIds == [1] and .security == "same"' <<<"$reality_hosts" >/dev/null
 settings=$(build_subscription_settings_payload '{"webPort":2053,"subEnable":false}' 'vpn.example.test' 'SubPath01')
 jq --exit-status -e '.webListen == "127.0.0.1" and .subListen == "127.0.0.1" and .subPort == 2096 and .subURI == "https://vpn.example.test/SubPath01/"' <<<"$settings" >/dev/null
+generate_transport_identifiers
+validate_nginx_path_segment "$VARON_XHTTP_PATH"
+validate_nginx_path_segment "$VARON_TROJAN_SERVICE"
+[[ $VARON_REALITY_SHORT_ID =~ ^[a-f0-9]{16}$ ]]
 [[ $(build_subscription_url 'vpn.example.test' 'subroute123' 'sub123') == 'https://vpn.example.test/subroute123/sub123' ]]
 subscription_contains_all_transports <<<'vless://one?type=reality
 vless://two?type=xhttp
