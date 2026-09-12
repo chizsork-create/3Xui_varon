@@ -10,6 +10,8 @@ source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/lib/config.sh"
 source "$ROOT_DIR/lib/security.sh"
 source "$ROOT_DIR/lib/clients.sh"
+# shellcheck source=../lib/panel.sh
+source "$ROOT_DIR/lib/panel.sh"
 # shellcheck source=../lib/release.sh
 source "$ROOT_DIR/lib/release.sh"
 
@@ -41,6 +43,8 @@ assert_true validate_client_name varon
 assert_true validate_client_name client_1
 assert_false validate_client_name Varon
 assert_false validate_client_name 1client
+assert_true validate_panel_username panel-a1b2
+assert_false validate_panel_username Admin
 [[ $(normalize_cpu_architecture x86_64) == 'amd64' ]]
 [[ $(normalize_cpu_architecture aarch64) == 'arm64' ]]
 select_3xui_asset amd64
