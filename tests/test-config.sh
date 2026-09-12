@@ -9,6 +9,7 @@ source "$ROOT_DIR/lib/common.sh"
 # shellcheck source=../lib/config.sh
 source "$ROOT_DIR/lib/config.sh"
 source "$ROOT_DIR/lib/security.sh"
+source "$ROOT_DIR/lib/clients.sh"
 
 assert_true() {
     "$@" || { printf 'Assertion failed: %s\n' "$*" >&2; exit 1; }
@@ -34,5 +35,9 @@ assert_true validate_tcp_port 65535
 assert_false validate_tcp_port 0
 assert_false validate_tcp_port 65536
 assert_false validate_tcp_port ssh
+assert_true validate_client_name varon
+assert_true validate_client_name client_1
+assert_false validate_client_name Varon
+assert_false validate_client_name 1client
 
 printf 'config tests passed\n'

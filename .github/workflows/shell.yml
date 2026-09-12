@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install checks
-        run: sudo apt-get update && sudo apt-get install --yes shellcheck
+        run: sudo apt-get update && sudo apt-get install --yes jq shellcheck
       - name: Syntax check
         run: |
           while IFS= read -r file; do bash -n "$file"; done < <(find bin lib tests -type f -name '*.sh' -o -path 'bin/varon')
