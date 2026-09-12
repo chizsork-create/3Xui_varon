@@ -24,9 +24,25 @@ xui_success_response() {
     jq --exit-status -e '.success == true' >/dev/null
 }
 
+xui_csrf_token() {
+    local panel_url=$1 cookie_file=$2 resolve_host=${3:-} response
+    local -a resolve_args=()
+
+    [[ -n $resolve_host ]] && resolve_args=(--resolve "${resolve_host}:443:127.0.0.1" --insecure)
+    curl --fail --silent --show-error "${resolve_args[@]}" \
+        --cookie "$cookie_file" --cookie-jar "$cookie_file" \
+        "${panel_url}/" >/dev/null
+    response=$(curl --fail --silent --show-error "${resolve_args[@]}" \
+        --cookie "$cookie_file" --cookie-jar "$cookie_file" \
+        --header 'X-Requested-With: XMLHttpRequest' \
+        "${panel_url}/csrf-token") || die "Could not get 3X-UI CSRF token"
+    jq --exit-status -er '.obj | strings | select(length > 0)' <<<"$response" \
+        || die "3X-UI did not return a CSRF token"
+}
+
 xui_login() {
     local hostname=$1 web_base_path=$2 username=$3 password=$4
-    local cookie_file request_file response
+    local cookie_file request_file response csrf_token
 
     command_exists curl || die "curl is required"
     cookie_file=$(mktemp)
@@ -34,11 +50,14 @@ xui_login() {
     chmod 0600 "$cookie_file" "$request_file"
     jq --null-input --arg username "$username" --arg password "$password" \
         '{username: $username, password: $password}' >"$request_file"
+    csrf_token=$(xui_csrf_token "$(xui_panel_url "$hostname" "$web_base_path")" "$cookie_file" "$hostname")
 
     response=$(curl --fail --silent --show-error --insecure \
         --resolve "${hostname}:443:127.0.0.1" \
-        --cookie-jar "$cookie_file" \
+        --cookie "$cookie_file" --cookie-jar "$cookie_file" \
         --header 'Content-Type: application/json' \
+        --header 'X-Requested-With: XMLHttpRequest' \
+        --header "X-CSRF-Token: $csrf_token" \
         --data-binary "@$request_file" \
         "$(xui_panel_url "$hostname" "$web_base_path")/login") || {
         rm -f -- "$cookie_file" "$request_file"
@@ -54,15 +73,18 @@ xui_login() {
 
 xui_api_post() {
     local hostname=$1 web_base_path=$2 cookie_file=$3 endpoint=$4 payload=$5
-    local request_file response
+    local request_file response csrf_token
 
     request_file=$(mktemp)
     chmod 0600 "$request_file"
     printf '%s\n' "$payload" >"$request_file"
+    csrf_token=$(xui_csrf_token "$(xui_panel_url "$hostname" "$web_base_path")" "$cookie_file" "$hostname")
     response=$(curl --fail --silent --show-error --insecure \
         --resolve "${hostname}:443:127.0.0.1" \
         --cookie "$cookie_file" \
         --header 'Content-Type: application/json' \
+        --header 'X-Requested-With: XMLHttpRequest' \
+        --header "X-CSRF-Token: $csrf_token" \
         --data-binary "@$request_file" \
         "$(xui_api_url "$hostname" "$web_base_path" "$endpoint")") || {
         rm -f -- "$request_file"
@@ -86,7 +108,7 @@ xui_local_api_url() {
 
 xui_local_login() {
     local port=$1 web_base_path=$2 username=$3 password=$4
-    local cookie_file request_file response
+    local cookie_file request_file response csrf_token
 
     command_exists curl || die "curl is required"
     cookie_file=$(mktemp)
@@ -94,10 +116,13 @@ xui_local_login() {
     chmod 0600 "$cookie_file" "$request_file"
     jq --null-input --arg username "$username" --arg password "$password" \
         '{username: $username, password: $password}' >"$request_file"
+    csrf_token=$(xui_csrf_token "$(xui_local_panel_url "$port" "$web_base_path")" "$cookie_file")
 
     response=$(curl --fail --silent --show-error \
-        --cookie-jar "$cookie_file" \
+        --cookie "$cookie_file" --cookie-jar "$cookie_file" \
         --header 'Content-Type: application/json' \
+        --header 'X-Requested-With: XMLHttpRequest' \
+        --header "X-CSRF-Token: $csrf_token" \
         --data-binary "@$request_file" \
         "$(xui_local_panel_url "$port" "$web_base_path")/login") || {
         rm -f -- "$cookie_file" "$request_file"
@@ -113,14 +138,17 @@ xui_local_login() {
 
 xui_local_api_post() {
     local port=$1 web_base_path=$2 cookie_file=$3 endpoint=$4 payload=$5
-    local request_file response
+    local request_file response csrf_token
 
     request_file=$(mktemp)
     chmod 0600 "$request_file"
     printf '%s\n' "$payload" >"$request_file"
+    csrf_token=$(xui_csrf_token "$(xui_local_panel_url "$port" "$web_base_path")" "$cookie_file")
     response=$(curl --fail --silent --show-error \
         --cookie "$cookie_file" \
         --header 'Content-Type: application/json' \
+        --header 'X-Requested-With: XMLHttpRequest' \
+        --header "X-CSRF-Token: $csrf_token" \
         --data-binary "@$request_file" \
         "$(xui_local_api_url "$port" "$web_base_path" "$endpoint")") || {
         rm -f -- "$request_file"
