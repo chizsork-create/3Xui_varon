@@ -12,6 +12,8 @@ source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/lib/state.sh"
 # shellcheck source=../lib/security.sh
 source "$ROOT_DIR/lib/security.sh"
+# shellcheck source=../lib/nginx.sh
+source "$ROOT_DIR/lib/nginx.sh"
 
 VARON_STATE_DIR="$TEST_TMP/state"
 VARON_STATE_FILE="$VARON_STATE_DIR/install.env"
@@ -27,5 +29,17 @@ write_install_state 'example.free-dns.tld' 'vpn.example.free-dns.tld' \
     'reality.example.free-dns.tld' 22
 [[ $(stat -c '%a' "$VARON_STATE_FILE") == '600' ]]
 grep -qx 'PANEL_HOST=vpn.example.free-dns.tld' "$VARON_STATE_FILE"
+
+xhttp_location=$(render_xhttp_proxy_location 'XhttpPath1' '/run/3xui-varon/xhttp.sock' 'vpn.example.free-dns.tld')
+grep -Fqx '    proxy_pass https://unix:/run/3xui-varon/xhttp.sock:;' <<<"$xhttp_location"
+grep -Fqx '    proxy_ssl_name vpn.example.free-dns.tld;' <<<"$xhttp_location"
+if grep -Fq 'grpc_pass' <<<"$xhttp_location"; then
+    printf 'XHTTP renderer must not emit grpc_pass\n' >&2
+    exit 1
+fi
+
+stream_config=$(render_stream_config 'vpn.example.free-dns.tld' 'reality.example.free-dns.tld' 7443 8443)
+grep -Fqx '    reality.example.free-dns.tld varon_reality;' <<<"$stream_config"
+grep -Fqx '    server 127.0.0.1:7443;' <<<"$stream_config"
 
 printf 'security tests passed\n'
