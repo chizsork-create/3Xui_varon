@@ -56,6 +56,7 @@ download_3xui_release() {
     select_3xui_asset "$architecture"
 
     curl --fail --location --proto '=https' --tlsv1.2 --silent --show-error \
+        --connect-timeout 15 --max-time 180 \
         --output "$destination" "$VARON_3XUI_ASSET_URL"
     verify_sha256 "$VARON_3XUI_ASSET_SHA256" "$destination"
     ok "Verified official 3X-UI ${VARON_3XUI_VERSION} (${architecture})"

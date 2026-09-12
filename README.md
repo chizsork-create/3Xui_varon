@@ -44,6 +44,12 @@ sudo ./bin/varon preflight \
 sudo ./bin/varon install
 ```
 
+Если не нужен e-mail для уведомлений Let’s Encrypt:
+
+```bash
+sudo ./bin/varon install --no-email
+```
+
 Либо все значения можно передать флагами:
 
 ```bash

@@ -20,14 +20,22 @@ certificate_key_for_host() {
 
 issue_lets_encrypt_certificate() {
     local hostname=$1 webroot=$2 certificate_file certificate_key
+    local -a registration_args
 
     require_root
-    validate_email_address "$VARON_CERTBOT_EMAIL" || die "A valid Let's Encrypt email is required"
     command_exists certbot || die "certbot is not installed"
     [[ -d "$webroot" ]] || die "ACME webroot is missing: $webroot"
 
+    if [[ -n $VARON_CERTBOT_EMAIL ]]; then
+        validate_email_address "$VARON_CERTBOT_EMAIL" || die "Invalid Let's Encrypt email"
+        registration_args=(--email "$VARON_CERTBOT_EMAIL")
+    else
+        registration_args=(--register-unsafely-without-email)
+        warn "Let's Encrypt account will be registered without an email address"
+    fi
+
     certbot certonly --webroot --webroot-path "$webroot" \
-        --domain "$hostname" --email "$VARON_CERTBOT_EMAIL" \
+        --domain "$hostname" "${registration_args[@]}" \
         --agree-tos --non-interactive --keep-until-expiring
     certificate_file=$(certificate_file_for_host "$hostname")
     certificate_key=$(certificate_key_for_host "$hostname")
