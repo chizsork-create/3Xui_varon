@@ -191,11 +191,18 @@ ensure_nginx_stream_include() {
 
     require_root
     [[ -r /etc/nginx/nginx.conf ]] || die "nginx.conf is missing"
-    grep -Fqx "$VARON_NGINX_STREAM_INCLUDE" /etc/nginx/nginx.conf && return 0
+    if grep -Fqx 'stream {' /etc/nginx/nginx.conf && grep -Fq "$VARON_NGINX_STREAM_INCLUDE" /etc/nginx/nginx.conf; then
+        return 0
+    fi
 
     temporary_config=$(mktemp)
-    cp /etc/nginx/nginx.conf "$temporary_config"
-    printf '\n%s\n' "$VARON_NGINX_STREAM_INCLUDE" >>"$temporary_config"
+    grep -Fvx "$VARON_NGINX_STREAM_INCLUDE" /etc/nginx/nginx.conf >"$temporary_config" || true
+    cat >>"$temporary_config" <<EOF
+
+stream {
+    ${VARON_NGINX_STREAM_INCLUDE}
+}
+EOF
     atomic_install_file "$temporary_config" /etc/nginx/nginx.conf 0644
     rm -f -- "$temporary_config"
 }
