@@ -2,3 +2,4 @@
 bin/varon text eol=lf
 *.yml text eol=lf
 *.md text eol=lf
+releases/*.env text eol=lf
