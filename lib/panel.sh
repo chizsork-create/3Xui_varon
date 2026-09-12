@@ -55,6 +55,7 @@ write_panel_state() {
     {
         printf 'PANEL_USERNAME=%q\n' "$VARON_PANEL_USERNAME"
         printf 'PANEL_PASSWORD=%q\n' "$VARON_PANEL_PASSWORD"
+        printf 'PANEL_PATH=%q\n' "$VARON_PANEL_PATH"
         printf 'PANEL_INTERNAL_PORT=%q\n' "$VARON_PANEL_INTERNAL_PORT"
         printf 'SUBSCRIPTION_INTERNAL_PORT=%q\n' "$VARON_SUBSCRIPTION_INTERNAL_PORT"
     } >"$temporary_state"
