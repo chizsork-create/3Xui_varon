@@ -41,7 +41,12 @@ configure_fail2ban() {
     require_root
     command_exists fail2ban-client || die "fail2ban is not installed"
     render_fail2ban_sshd_jail /etc/fail2ban/jail.d/varon-sshd.local
-    systemctl enable --now fail2ban
+    systemctl enable fail2ban
+    ok "Fail2ban SSH jail configured; activation is deferred until installation verification"
+}
+
+activate_fail2ban() {
+    require_root
     systemctl restart fail2ban
     fail2ban-client status sshd >/dev/null
     ok "Fail2ban SSH jail enabled"

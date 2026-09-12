@@ -126,6 +126,7 @@ run_install() {
     write_transport_state "$VARON_STATE_DIR/transports.env"
     subscription_url=$(build_subscription_url "$panel_host" "$VARON_SUBSCRIPTION_PATH" "$VARON_CLIENT_SUB_ID")
     verify_subscription_url "$panel_host" "$VARON_SUBSCRIPTION_PATH" "$VARON_CLIENT_SUB_ID"
+    activate_fail2ban
 
     ok "Installation finished"
     info "Panel URL: $(xui_panel_url "$panel_host" "$VARON_PANEL_PATH")"
