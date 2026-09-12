@@ -37,9 +37,12 @@ configure_fresh_panel() {
 
 wait_for_local_panel() {
     local panel_path=$1 attempt
+    local -a host_args=()
 
+    [[ -n ${VARON_XUI_LOCAL_HOST_HEADER:-} ]] && host_args=(--header "Host: $VARON_XUI_LOCAL_HOST_HEADER")
     for attempt in {1..30}; do
         if curl --fail --silent --show-error --max-time 2 \
+            "${host_args[@]}" \
             "$(xui_local_panel_url "$VARON_PANEL_INTERNAL_PORT" "$panel_path")/" >/dev/null 2>&1; then
             return 0
         fi

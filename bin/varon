@@ -113,6 +113,7 @@ run_install() {
     systemctl enable --now x-ui
     wait_for_local_panel "$VARON_PANEL_PATH"
     configure_panel_subscription_service "$VARON_PANEL_PATH" "$panel_host" "$VARON_SUBSCRIPTION_PATH"
+    VARON_XUI_LOCAL_HOST_HEADER=$panel_host
     systemctl restart x-ui
     wait_for_local_panel "$VARON_PANEL_PATH"
 

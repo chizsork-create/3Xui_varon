@@ -25,14 +25,17 @@ xui_success_response() {
 }
 
 xui_csrf_token() {
-    local panel_url=$1 cookie_file=$2 resolve_host=${3:-} response
-    local -a resolve_args=()
+    local panel_url=$1 cookie_file=$2 resolve_host=${3:-} host_header=${4:-} response
+    local -a resolve_args=() host_args=()
 
     [[ -n $resolve_host ]] && resolve_args=(--resolve "${resolve_host}:443:127.0.0.1" --insecure)
+    [[ -n $host_header ]] && host_args=(--header "Host: $host_header")
     curl --fail --silent --show-error "${resolve_args[@]}" \
+        "${host_args[@]}" \
         --cookie "$cookie_file" --cookie-jar "$cookie_file" \
         "${panel_url}/" >/dev/null
     response=$(curl --fail --silent --show-error "${resolve_args[@]}" \
+        "${host_args[@]}" \
         --cookie "$cookie_file" --cookie-jar "$cookie_file" \
         --header 'X-Requested-With: XMLHttpRequest' \
         "${panel_url}/csrf-token") || die "Could not get 3X-UI CSRF token"
@@ -109,17 +112,20 @@ xui_local_api_url() {
 xui_local_login() {
     local port=$1 web_base_path=$2 username=$3 password=$4
     local cookie_file request_file response csrf_token
+    local -a host_args=()
 
     command_exists curl || die "curl is required"
+    [[ -n ${VARON_XUI_LOCAL_HOST_HEADER:-} ]] && host_args=(--header "Host: $VARON_XUI_LOCAL_HOST_HEADER")
     cookie_file=$(mktemp)
     request_file=$(mktemp)
     chmod 0600 "$cookie_file" "$request_file"
     jq --null-input --arg username "$username" --arg password "$password" \
         '{username: $username, password: $password}' >"$request_file"
-    csrf_token=$(xui_csrf_token "$(xui_local_panel_url "$port" "$web_base_path")" "$cookie_file")
+    csrf_token=$(xui_csrf_token "$(xui_local_panel_url "$port" "$web_base_path")" "$cookie_file" "" "${VARON_XUI_LOCAL_HOST_HEADER:-}")
 
     response=$(curl --fail --silent --show-error \
         --cookie "$cookie_file" --cookie-jar "$cookie_file" \
+        "${host_args[@]}" \
         --header 'Content-Type: application/json' \
         --header 'X-Requested-With: XMLHttpRequest' \
         --header "X-CSRF-Token: $csrf_token" \
@@ -139,13 +145,16 @@ xui_local_login() {
 xui_local_api_post() {
     local port=$1 web_base_path=$2 cookie_file=$3 endpoint=$4 payload=$5
     local request_file response csrf_token
+    local -a host_args=()
 
+    [[ -n ${VARON_XUI_LOCAL_HOST_HEADER:-} ]] && host_args=(--header "Host: $VARON_XUI_LOCAL_HOST_HEADER")
     request_file=$(mktemp)
     chmod 0600 "$request_file"
     printf '%s\n' "$payload" >"$request_file"
-    csrf_token=$(xui_csrf_token "$(xui_local_panel_url "$port" "$web_base_path")" "$cookie_file")
+    csrf_token=$(xui_csrf_token "$(xui_local_panel_url "$port" "$web_base_path")" "$cookie_file" "" "${VARON_XUI_LOCAL_HOST_HEADER:-}")
     response=$(curl --fail --silent --show-error \
         --cookie "$cookie_file" \
+        "${host_args[@]}" \
         --header 'Content-Type: application/json' \
         --header 'X-Requested-With: XMLHttpRequest' \
         --header "X-CSRF-Token: $csrf_token" \
