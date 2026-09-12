@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# 3Xui Varon entry point. Commands are intentionally read-only until install is
+# implemented and covered by a test deployment.
+set -Eeuo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+ROOT_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
+
+# shellcheck source=../lib/common.sh
+source "$ROOT_DIR/lib/common.sh"
+# shellcheck source=../lib/config.sh
+source "$ROOT_DIR/lib/config.sh"
+# shellcheck source=../lib/preflight.sh
+source "$ROOT_DIR/lib/preflight.sh"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  varon preflight --base-domain DOMAIN --panel-subdomain NAME [--reality-subdomain NAME]
+
+Examples:
+  varon preflight --base-domain example.free-dns.tld --panel-subdomain vpn
+  varon preflight --base-domain example.free-dns.tld --panel-subdomain vpn --reality-subdomain reality
+
+The preflight command is read-only. It validates Ubuntu, names, DNS and the
+public ports needed for a future installation; it never changes the server.
+EOF
+}
+
+command_name=${1:-}
+[[ -n "$command_name" ]] || { usage; exit 64; }
+shift
+
+base_domain=""
+panel_subdomain=""
+reality_subdomain="reality"
+
+while (($#)); do
+    case "$1" in
+        --base-domain)
+            base_domain=${2:?"--base-domain requires a value"}
+            shift 2
+            ;;
+        --panel-subdomain)
+            panel_subdomain=${2:?"--panel-subdomain requires a value"}
+            shift 2
+            ;;
+        --reality-subdomain)
+            reality_subdomain=${2:?"--reality-subdomain requires a value"}
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            die "Unknown argument: $1"
+            ;;
+    esac
+done
+
+case "$command_name" in
+    preflight)
+        require_value "--base-domain" "$base_domain"
+        require_value "--panel-subdomain" "$panel_subdomain"
+        run_preflight "$base_domain" "$panel_subdomain" "$reality_subdomain"
+        ;;
+    *)
+        die "Unknown command: $command_name"
+        ;;
+esac
