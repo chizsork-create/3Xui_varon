@@ -12,7 +12,7 @@ build_sniffing_json() {
 
 build_reality_inbound_payload() {
     local remark=$1 tag=$2 listen_port=$3 reality_server_name=$4 reality_dest=$5
-    local private_key=$6 short_id=$7
+    local private_key=$6 public_key=$7 short_id=$8
 
     validate_inbound_name "$tag" || die "Invalid inbound tag: $tag"
     validate_tcp_port "$listen_port" || die "Invalid Reality port"
@@ -20,13 +20,13 @@ build_reality_inbound_payload() {
 
     jq --compact-output --null-input \
         --arg remark "$remark" --arg tag "$tag" --arg server_name "$reality_server_name" \
-        --arg dest "$reality_dest" --arg private_key "$private_key" --arg short_id "$short_id" \
+        --arg dest "$reality_dest" --arg private_key "$private_key" --arg public_key "$public_key" --arg short_id "$short_id" \
         --argjson port "$listen_port" \
         --arg settings "$(jq -cn '{clients: [], decryption: "none"}')" \
         --arg stream_settings "$(jq -cn \
             --arg server_name "$reality_server_name" --arg dest "$reality_dest" \
-            --arg private_key "$private_key" --arg short_id "$short_id" \
-            '{network: "tcp", security: "reality", tcpSettings: {acceptProxyProtocol: true}, realitySettings: {show: false, xver: 1, dest: $dest, serverNames: [$server_name], privateKey: $private_key, shortIds: [$short_id]}}')" \
+            --arg private_key "$private_key" --arg public_key "$public_key" --arg short_id "$short_id" \
+            '{network: "tcp", security: "reality", tcpSettings: {acceptProxyProtocol: true}, realitySettings: {show: false, xver: 1, dest: $dest, serverNames: [$server_name], privateKey: $private_key, publicKey: $public_key, shortIds: [$short_id], settings: {publicKey: $public_key, fingerprint: "chrome", serverName: "", spiderX: "/"}}}')" \
         --arg sniffing "$(build_sniffing_json)" \
         '{remark: $remark, enable: true, listen: "127.0.0.1", port: $port, protocol: "vless", tag: $tag, settings: $settings, streamSettings: $stream_settings, sniffing: $sniffing, subSortIndex: 10}'
 }

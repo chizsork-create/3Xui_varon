@@ -61,15 +61,15 @@ provision_default_transports() (
     trap 'rm -f -- "$cookie_file"' EXIT
 
     response=$(xui_api_post "$panel_host" "$VARON_PANEL_PATH" "$cookie_file" inbounds/add \
-        "$(build_reality_inbound_payload 'reality-first' 'reality-first' "$VARON_REALITY_INTERNAL_PORT" "$reality_host" "$VARON_REALITY_DEST" "$VARON_REALITY_PRIVATE_KEY" "$VARON_REALITY_SHORT_ID")")
+        "$(build_reality_inbound_payload 'Reality' 'reality-varon' "$VARON_REALITY_INTERNAL_PORT" "$reality_host" "$VARON_REALITY_DEST" "$VARON_REALITY_PRIVATE_KEY" "$VARON_REALITY_PUBLIC_KEY" "$VARON_REALITY_SHORT_ID")")
     reality_id=$(xui_response_object_id <<<"$response")
 
     response=$(xui_api_post "$panel_host" "$VARON_PANEL_PATH" "$cookie_file" inbounds/add \
-        "$(build_xhttp_inbound_payload 'xhttp-first' 'xhttp-first' "$VARON_XHTTP_SOCKET" "$panel_host" "$VARON_XHTTP_PATH" "$certificate_file" "$key_file")")
+        "$(build_xhttp_inbound_payload 'XHTTP' 'xhttp-varon' "$VARON_XHTTP_SOCKET" "$panel_host" "$VARON_XHTTP_PATH" "$certificate_file" "$key_file")")
     xhttp_id=$(xui_response_object_id <<<"$response")
 
     response=$(xui_api_post "$panel_host" "$VARON_PANEL_PATH" "$cookie_file" inbounds/add \
-        "$(build_trojan_grpc_inbound_payload 'trojan-grpc-first' 'trojan-grpc-first' "$VARON_TROJAN_INTERNAL_PORT" "$VARON_TROJAN_SERVICE")")
+        "$(build_trojan_grpc_inbound_payload 'Trojan gRPC' 'trojan-grpc-varon' "$VARON_TROJAN_INTERNAL_PORT" "$VARON_TROJAN_SERVICE")")
     trojan_id=$(xui_response_object_id <<<"$response")
 
     xui_api_post "$panel_host" "$VARON_PANEL_PATH" "$cookie_file" hosts/add \

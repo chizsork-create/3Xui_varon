@@ -41,7 +41,7 @@ subscription_contains_all_transports() {
 
     grep -Fq 'vless://' <<<"$content" &&
         grep -Fq 'trojan://' <<<"$content" &&
-        grep -Fq 'type=reality' <<<"$content" &&
+        (grep -Fq 'security=reality' <<<"$content" || grep -Fq 'type=reality' <<<"$content") &&
         grep -Fq 'type=xhttp' <<<"$content" &&
         grep -Fq 'type=grpc' <<<"$content"
 }
