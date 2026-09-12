@@ -47,4 +47,15 @@ select_3xui_asset amd64
 [[ $VARON_3XUI_ASSET == 'x-ui-linux-amd64.tar.gz' ]]
 [[ $VARON_3XUI_ASSET_SHA256 == '0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5' ]]
 
+release_fixture=$(mktemp -d)
+trap 'rm -rf -- "$release_fixture"' EXIT
+mkdir -p "$release_fixture/x-ui"
+touch "$release_fixture/x-ui/x-ui" "$release_fixture/x-ui/x-ui.sh" "$release_fixture/x-ui/x-ui.service.debian"
+assert_3xui_release_layout "$release_fixture"
+rm -f "$release_fixture/x-ui/x-ui.sh"
+if (assert_3xui_release_layout "$release_fixture"); then
+    printf 'Invalid release layout was accepted\n' >&2
+    exit 1
+fi
+
 printf 'config tests passed\n'

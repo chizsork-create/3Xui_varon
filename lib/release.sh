@@ -60,3 +60,41 @@ download_3xui_release() {
     verify_sha256 "$VARON_3XUI_ASSET_SHA256" "$destination"
     ok "Verified official 3X-UI ${VARON_3XUI_VERSION} (${architecture})"
 }
+
+assert_3xui_release_layout() {
+    local release_root=$1
+    [[ -f "$release_root/x-ui/x-ui" ]] || die "3X-UI archive does not contain x-ui binary"
+    [[ -f "$release_root/x-ui/x-ui.sh" ]] || die "3X-UI archive does not contain x-ui.sh"
+    [[ -f "$release_root/x-ui/x-ui.service.debian" ]] \
+        || die "3X-UI archive does not contain Debian systemd unit"
+}
+
+install_pinned_3xui_release() (
+    local temporary_dir archive_file release_root
+
+    require_root
+    command_exists tar || die "tar is required"
+    command_exists systemctl || die "systemctl is required"
+    [[ ! -e /usr/local/x-ui && ! -e /etc/systemd/system/x-ui.service ]] \
+        || die "3X-UI already exists; this installer only supports a clean install"
+
+    temporary_dir=$(mktemp -d)
+    trap 'rm -rf -- "$temporary_dir"' EXIT
+    archive_file="$temporary_dir/3x-ui.tar.gz"
+    release_root="$temporary_dir/release"
+    mkdir -p "$release_root"
+
+    download_3xui_release "$archive_file"
+    tar --extract --gzip --file "$archive_file" --directory "$release_root" --no-same-owner --no-same-permissions
+    assert_3xui_release_layout "$release_root"
+
+    install -d -o root -g root -m 0755 /usr/local/x-ui /etc/x-ui /var/log/x-ui
+    cp -a "$release_root/x-ui/." /usr/local/x-ui/
+    chown -R root:root /usr/local/x-ui
+    chmod 0755 /usr/local/x-ui/x-ui /usr/local/x-ui/x-ui.sh
+    install -o root -g root -m 0644 "$release_root/x-ui/x-ui.service.debian" /etc/systemd/system/x-ui.service
+    install -o root -g root -m 0755 "$release_root/x-ui/x-ui.sh" /usr/bin/x-ui
+    systemctl daemon-reload
+
+    ok "Pinned 3X-UI release installed; service has not been started yet"
+)
