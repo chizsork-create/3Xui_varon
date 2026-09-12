@@ -19,8 +19,8 @@ generate_reality_keypair() {
     xray_binary="/usr/local/x-ui/bin/xray-linux-${architecture}"
     [[ -x "$xray_binary" ]] || die "Xray binary is missing: $xray_binary"
     output=$("$xray_binary" x25519)
-    VARON_REALITY_PRIVATE_KEY=$(sed -n 's/^Private key:[[:space:]]*//p' <<<"$output")
-    VARON_REALITY_PUBLIC_KEY=$(sed -n 's/^Public key:[[:space:]]*//p' <<<"$output")
+    VARON_REALITY_PRIVATE_KEY=$(sed -nE 's/^Private(Key| key):[[:space:]]*//p' <<<"$output")
+    VARON_REALITY_PUBLIC_KEY=$(sed -nE 's/^(Public key|Password \(PublicKey\)):[[:space:]]*//p' <<<"$output")
     [[ -n $VARON_REALITY_PRIVATE_KEY && -n $VARON_REALITY_PUBLIC_KEY ]] \
         || die "Could not generate Reality key pair"
 }
