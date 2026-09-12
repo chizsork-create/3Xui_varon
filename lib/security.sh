@@ -59,6 +59,6 @@ APT::Periodic::Unattended-Upgrade "1";
 EOF
     atomic_install_file "$temporary_file" /etc/apt/apt.conf.d/20auto-upgrades 0644
     rm -f -- "$temporary_file"
-    systemctl enable --now apt-daily.timer apt-daily-upgrade.timer
+    systemctl enable apt-daily.timer apt-daily-upgrade.timer
     ok "Automatic security updates enabled"
 }
