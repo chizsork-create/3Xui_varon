@@ -25,6 +25,67 @@ location ^~ /${path_segment} {
     proxy_send_timeout 1h;
     client_max_body_size 0;
 }
+
+render_panel_proxy_location() {
+    local path_segment=$1 panel_port=$2
+
+    validate_nginx_path_segment "$path_segment" || die "Invalid panel path"
+    validate_tcp_port "$panel_port" || die "Invalid panel port"
+    cat <<EOF
+location = /${path_segment} {
+    return 301 /${path_segment}/;
+}
+
+location ^~ /${path_segment}/ {
+    proxy_pass http://127.0.0.1:${panel_port};
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host \$host;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 1h;
+}
+EOF
+}
+
+render_subscription_proxy_location() {
+    local path_segment=$1 subscription_port=$2
+
+    validate_nginx_path_segment "$path_segment" || die "Invalid subscription path"
+    validate_tcp_port "$subscription_port" || die "Invalid subscription port"
+    cat <<EOF
+location ^~ /${path_segment}/ {
+    proxy_pass http://127.0.0.1:${subscription_port};
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host \$host;
+    proxy_buffering off;
+}
+EOF
+}
+
+render_trojan_grpc_proxy_location() {
+    local service_name=$1 trojan_port=$2
+
+    validate_nginx_path_segment "$service_name" || die "Invalid Trojan gRPC service name"
+    validate_tcp_port "$trojan_port" || die "Invalid Trojan gRPC port"
+    cat <<EOF
+location ^~ /${service_name} {
+    grpc_pass grpc://127.0.0.1:${trojan_port};
+    grpc_set_header X-Real-IP \$remote_addr;
+    grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    grpc_set_header X-Forwarded-Proto https;
+    grpc_read_timeout 1h;
+    grpc_send_timeout 1h;
+}
+EOF
+}
 EOF
 }
 
@@ -58,7 +119,8 @@ EOF
 
 render_web_vhost() {
     local panel_host=$1 web_tls_port=$2 certificate_file=$3 key_file=$4
-    local cover_root=$5 xhttp_path=$6 xhttp_socket=$7
+    local cover_root=$5 xhttp_path=$6 xhttp_socket=$7 panel_path=$8 panel_port=$9
+    local subscription_path=${10} subscription_port=${11} trojan_service=${12} trojan_port=${13}
 
     cat <<EOF
 server {
@@ -75,6 +137,12 @@ server {
     index index.html;
 
 $(render_xhttp_proxy_location "$xhttp_path" "$xhttp_socket" "$panel_host")
+
+$(render_panel_proxy_location "$panel_path" "$panel_port")
+
+$(render_subscription_proxy_location "$subscription_path" "$subscription_port")
+
+$(render_trojan_grpc_proxy_location "$trojan_service" "$trojan_port")
 
     location / {
         try_files \$uri \$uri/ =404;

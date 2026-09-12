@@ -38,6 +38,13 @@ if grep -Fq 'grpc_pass' <<<"$xhttp_location"; then
     exit 1
 fi
 
+panel_location=$(render_panel_proxy_location 'PanelPath1' 2053)
+subscription_location=$(render_subscription_proxy_location 'SubPath01' 2096)
+trojan_location=$(render_trojan_grpc_proxy_location 'TrojanSvc1' 1443)
+grep -Fqx '    proxy_pass http://127.0.0.1:2053;' <<<"$panel_location"
+grep -Fqx '    proxy_pass http://127.0.0.1:2096;' <<<"$subscription_location"
+grep -Fqx '    grpc_pass grpc://127.0.0.1:1443;' <<<"$trojan_location"
+
 stream_config=$(render_stream_config 'vpn.example.free-dns.tld' 'reality.example.free-dns.tld' 7443 8443)
 grep -Fqx '    reality.example.free-dns.tld varon_reality;' <<<"$stream_config"
 grep -Fqx '    server 127.0.0.1:7443;' <<<"$stream_config"
