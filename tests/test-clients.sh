@@ -14,6 +14,8 @@ source "$ROOT_DIR/lib/clients.sh"
 source "$ROOT_DIR/lib/xui-api.sh"
 # shellcheck source=../lib/inbounds.sh
 source "$ROOT_DIR/lib/inbounds.sh"
+# shellcheck source=../lib/subscription.sh
+source "$ROOT_DIR/lib/subscription.sh"
 
 vless=$(build_vless_client_json '11111111-1111-4111-8111-111111111111' 'varon' 'sub123' 42)
 trojan=$(build_trojan_client_json 'secret' 'varon' 'sub123' 42)
@@ -54,5 +56,13 @@ jq --exit-status -e '.listen == "/run/3xui-varon/xhttp.sock,0660" and .port == 0
 jq --exit-status -e '.protocol == "trojan" and .listen == "127.0.0.1" and (.streamSettings | fromjson | .grpcSettings.serviceName == "trojanpath")' <<<"$trojan" >/dev/null
 jq --exit-status -e '.inboundIds == [2, 3] and .port == 443 and .security == "tls" and .sni == "vpn.example.test"' <<<"$tls_hosts" >/dev/null
 jq --exit-status -e '.inboundIds == [1] and .security == "same"' <<<"$reality_hosts" >/dev/null
+[[ $(build_subscription_url 'vpn.example.test' 'subroute123' 'sub123') == 'https://vpn.example.test/subroute123/sub123' ]]
+subscription_contains_all_transports <<<'vless://one?type=reality
+vless://two?type=xhttp
+trojan://three?type=grpc'
+if subscription_contains_all_transports <<<'vless://one?type=reality'; then
+    printf 'An incomplete subscription was accepted\n' >&2
+    exit 1
+fi
 
 printf 'client JSON tests passed\n'
