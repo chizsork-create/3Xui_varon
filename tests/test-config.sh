@@ -10,6 +10,8 @@ source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/lib/config.sh"
 source "$ROOT_DIR/lib/security.sh"
 source "$ROOT_DIR/lib/clients.sh"
+# shellcheck source=../lib/release.sh
+source "$ROOT_DIR/lib/release.sh"
 
 assert_true() {
     "$@" || { printf 'Assertion failed: %s\n' "$*" >&2; exit 1; }
@@ -39,5 +41,10 @@ assert_true validate_client_name varon
 assert_true validate_client_name client_1
 assert_false validate_client_name Varon
 assert_false validate_client_name 1client
+[[ $(normalize_cpu_architecture x86_64) == 'amd64' ]]
+[[ $(normalize_cpu_architecture aarch64) == 'arm64' ]]
+select_3xui_asset amd64
+[[ $VARON_3XUI_ASSET == 'x-ui-linux-amd64.tar.gz' ]]
+[[ $VARON_3XUI_ASSET_SHA256 == '0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5' ]]
 
 printf 'config tests passed\n'
