@@ -17,8 +17,18 @@ build_subscription_url() {
 }
 
 decode_subscription_body() {
-    local body=$1 decoded
-    if [[ $body =~ ^[A-Za-z0-9+/=[:space:]]+$ ]] && decoded=$(printf '%s' "$body" | base64 --decode 2>/dev/null); then
+    local body=$1 compact normalized decoded
+
+    compact=$(tr -d '[:space:]' <<<"$body")
+    if [[ $compact =~ ^[A-Za-z0-9+/_=-]+$ ]]; then
+        normalized=${compact//-/+}
+        normalized=${normalized//_/\/}
+        while (( ${#normalized} % 4 != 0 )); do
+            normalized+='='
+        done
+    fi
+
+    if [[ -n ${normalized:-} ]] && decoded=$(printf '%s' "$normalized" | base64 --decode 2>/dev/null); then
         printf '%s\n' "$decoded"
     else
         printf '%s\n' "$body"

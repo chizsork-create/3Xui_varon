@@ -131,6 +131,8 @@ run_install() {
 
     ok "Installation finished"
     info "Panel URL: $(xui_panel_url "$panel_host" "$VARON_PANEL_PATH")"
+    info "Panel username: $VARON_PANEL_USERNAME"
+    info "Panel password: $VARON_PANEL_PASSWORD"
     info "Subscription URL: $subscription_url"
     info "Panel credentials are root-only: $VARON_STATE_DIR/panel.env"
 }
