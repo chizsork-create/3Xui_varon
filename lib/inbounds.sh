@@ -51,6 +51,22 @@ build_xhttp_inbound_payload() {
         '{remark: $remark, enable: true, listen: $socket_path, port: 0, protocol: "vless", tag: $tag, settings: $settings, streamSettings: $stream_settings, sniffing: $sniffing, subSortIndex: 20}'
 }
 
+build_ws_inbound_payload() {
+    local remark=$1 tag=$2 listen_port=$3 path_segment=$4
+
+    validate_inbound_name "$tag" || die "Invalid inbound tag: $tag"
+    validate_tcp_port "$listen_port" || die "Invalid WS port"
+    validate_nginx_path_segment "$path_segment" || die "Invalid WS path"
+
+    jq --compact-output --null-input \
+        --arg remark "$remark" --arg tag "$tag" --arg path "/${path_segment}" \
+        --argjson port "$listen_port" \
+        --arg settings "$(jq -cn '{clients: [], decryption: "none"}')" \
+        --arg stream_settings "$(jq -cn --arg path "/${path_segment}" '{network: "ws", security: "none", wsSettings: {path: $path}}')" \
+        --arg sniffing "$(build_sniffing_json)" \
+        '{remark: $remark, enable: true, listen: "127.0.0.1", port: $port, protocol: "vless", tag: $tag, settings: $settings, streamSettings: $stream_settings, sniffing: $sniffing, subSortIndex: 30}'
+}
+
 build_trojan_grpc_inbound_payload() {
     local remark=$1 tag=$2 listen_port=$3 service_name=$4
 
@@ -64,7 +80,7 @@ build_trojan_grpc_inbound_payload() {
         --arg settings "$(jq -cn '{clients: []}')" \
         --arg stream_settings "$(jq -cn --arg service_name "$service_name" '{network: "grpc", security: "none", grpcSettings: {serviceName: $service_name}}')" \
         --arg sniffing "$(build_sniffing_json)" \
-        '{remark: $remark, enable: true, listen: "127.0.0.1", port: $port, protocol: "trojan", tag: $tag, settings: $settings, streamSettings: $stream_settings, sniffing: $sniffing, subSortIndex: 30}'
+        '{remark: $remark, enable: true, listen: "127.0.0.1", port: $port, protocol: "trojan", tag: $tag, settings: $settings, streamSettings: $stream_settings, sniffing: $sniffing, subSortIndex: 40}'
 }
 
 build_host_group_payload() {

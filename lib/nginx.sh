@@ -45,6 +45,26 @@ location = /${path_segment} {
     return 301 /${path_segment}/;
 }
 
+render_ws_proxy_location() {
+    local path_segment=$1 ws_port=$2
+
+    validate_nginx_path_segment "$path_segment" || die "Invalid WS path"
+    validate_tcp_port "$ws_port" || die "Invalid WS port"
+    cat <<EOF
+location ^~ /${path_segment} {
+    proxy_pass http://127.0.0.1:${ws_port};
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 1h;
+}
+EOF
+}
+
 location ^~ /${path_segment}/ {
     proxy_pass http://127.0.0.1:${panel_port};
     proxy_http_version 1.1;
@@ -150,6 +170,7 @@ render_web_vhost() {
     local panel_host=$1 web_tls_port=$2 certificate_file=$3 key_file=$4
     local cover_root=$5 xhttp_path=$6 xhttp_socket=$7 panel_path=$8 panel_port=$9
     local subscription_path=${10} subscription_port=${11} trojan_service=${12} trojan_port=${13}
+    local ws_path=${14} ws_port=${15}
 
     cat <<EOF
 server {
@@ -166,6 +187,8 @@ server {
     index index.html;
 
 $(render_xhttp_proxy_location "$xhttp_path" "$xhttp_socket" "$panel_host")
+
+$(render_ws_proxy_location "$ws_path" "$ws_port")
 
 $(render_panel_proxy_location "$panel_path" "$panel_port")
 
@@ -236,7 +259,7 @@ install_nginx_proxy_stack() {
         "$VARON_COVER_ROOT" "$VARON_XHTTP_PATH" "$VARON_XHTTP_SOCKET" \
         "$VARON_PANEL_PATH" "$VARON_PANEL_INTERNAL_PORT" "$VARON_SUBSCRIPTION_PATH" \
         "$VARON_SUBSCRIPTION_INTERNAL_PORT" "$VARON_TROJAN_SERVICE" \
-        "$VARON_TROJAN_INTERNAL_PORT" >"$temporary_web"
+        "$VARON_TROJAN_INTERNAL_PORT" "$VARON_WS_PATH" "$VARON_WS_INTERNAL_PORT" >"$temporary_web"
     render_stream_config "$panel_host" "$reality_host" "$VARON_WEB_TLS_PORT" \
         "$VARON_REALITY_INTERNAL_PORT" >"$temporary_stream"
     atomic_install_file "$temporary_web" "$VARON_NGINX_WEB_CONFIG" 0644
