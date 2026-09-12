@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-validate_nginx_path_segment() {
-    local value=$1
-    [[ $value =~ ^[A-Za-z0-9_-]{8,64}$ ]]
-}
-
 render_xhttp_proxy_location() {
     local path_segment=$1 socket_path=$2 server_name=$3
 

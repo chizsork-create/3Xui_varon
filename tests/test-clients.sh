@@ -12,6 +12,8 @@ source "$ROOT_DIR/lib/state.sh"
 source "$ROOT_DIR/lib/clients.sh"
 # shellcheck source=../lib/xui-api.sh
 source "$ROOT_DIR/lib/xui-api.sh"
+# shellcheck source=../lib/inbounds.sh
+source "$ROOT_DIR/lib/inbounds.sh"
 
 vless=$(build_vless_client_json '11111111-1111-4111-8111-111111111111' 'varon' 'sub123' 42)
 trojan=$(build_trojan_client_json 'secret' 'varon' 'sub123' 42)
@@ -40,5 +42,17 @@ if xui_success_response <<<'{"success":false}'; then
     printf 'A failed API response was accepted\n' >&2
     exit 1
 fi
+
+reality=$(build_reality_inbound_payload 'Reality' 'reality-first' 8443 'reality.example.test' 'www.cloudflare.com:443' 'private-key' 'a1b2c3d4')
+xhttp=$(build_xhttp_inbound_payload 'XHTTP' 'xhttp-first' '/run/3xui-varon/xhttp.sock' 'vpn.example.test' 'abcdefgh' '/etc/letsencrypt/live/vpn/fullchain.pem' '/etc/letsencrypt/live/vpn/privkey.pem')
+trojan=$(build_trojan_grpc_inbound_payload 'Trojan gRPC' 'trojan-first' 1443 'trojanpath')
+tls_hosts=$(build_host_group_payload 'Public TLS' 'vpn.example.test' tls 2 3)
+reality_hosts=$(build_host_group_payload 'Public Reality' 'reality.example.test' same 1)
+
+jq --exit-status -e '.protocol == "vless" and .port == 8443 and (.streamSettings | fromjson | .security == "reality") and (.streamSettings | fromjson | .tcpSettings.acceptProxyProtocol == true)' <<<"$reality" >/dev/null
+jq --exit-status -e '.listen == "/run/3xui-varon/xhttp.sock,0660" and .port == 0 and (.streamSettings | fromjson | .network == "xhttp") and (.streamSettings | fromjson | .xhttpSettings.mode == "packet-up")' <<<"$xhttp" >/dev/null
+jq --exit-status -e '.protocol == "trojan" and .listen == "127.0.0.1" and (.streamSettings | fromjson | .grpcSettings.serviceName == "trojanpath")' <<<"$trojan" >/dev/null
+jq --exit-status -e '.inboundIds == [2, 3] and .port == 443 and .security == "tls" and .sni == "vpn.example.test"' <<<"$tls_hosts" >/dev/null
+jq --exit-status -e '.inboundIds == [1] and .security == "same"' <<<"$reality_hosts" >/dev/null
 
 printf 'client JSON tests passed\n'

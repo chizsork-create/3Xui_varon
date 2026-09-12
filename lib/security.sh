@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-validate_tcp_port() {
-    local port=$1
-    [[ $port =~ ^[0-9]{1,5}$ ]] || return 1
-    port=$((10#$port))
-    ((port >= 1 && port <= 65535))
-}
-
 render_fail2ban_sshd_jail() {
     local destination=$1 temporary_file
 

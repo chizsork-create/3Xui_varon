@@ -52,8 +52,8 @@ xui_login() {
     printf '%s\n' "$cookie_file"
 }
 
-xui_create_shared_client() {
-    local hostname=$1 web_base_path=$2 cookie_file=$3 payload=$4
+xui_api_post() {
+    local hostname=$1 web_base_path=$2 cookie_file=$3 endpoint=$4 payload=$5
     local request_file response
 
     request_file=$(mktemp)
@@ -64,10 +64,17 @@ xui_create_shared_client() {
         --cookie "$cookie_file" \
         --header 'Content-Type: application/json' \
         --data-binary "@$request_file" \
-        "$(xui_api_url "$hostname" "$web_base_path" clients/add)") || {
+        "$(xui_api_url "$hostname" "$web_base_path" "$endpoint")") || {
         rm -f -- "$request_file"
-        die "3X-UI client creation request failed"
+        die "3X-UI API request failed: $endpoint"
     }
     rm -f -- "$request_file"
-    xui_success_response <<<"$response" || die "3X-UI rejected client creation"
+    xui_success_response <<<"$response" || die "3X-UI rejected API request: $endpoint"
+    printf '%s\n' "$response"
+}
+
+xui_create_shared_client() {
+    local hostname=$1 web_base_path=$2 cookie_file=$3 payload=$4
+
+    xui_api_post "$hostname" "$web_base_path" "$cookie_file" clients/add "$payload" >/dev/null
 }

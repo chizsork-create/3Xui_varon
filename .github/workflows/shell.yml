@@ -16,7 +16,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes jq shellcheck
       - name: Syntax check
         run: |
-          while IFS= read -r file; do bash -n "$file"; done < <(find bin lib tests -type f -name '*.sh' -o -path 'bin/varon')
+          while IFS= read -r file; do bash -n "$file"; done < <(find bin lib tests -type f \( -name '*.sh' -o -path 'bin/varon' \))
       - name: ShellCheck
         run: shellcheck --external-sources bin/varon lib/*.sh tests/*.sh
       - name: Unit tests
