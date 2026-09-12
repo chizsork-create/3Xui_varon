@@ -12,6 +12,8 @@ source "$ROOT_DIR/lib/security.sh"
 source "$ROOT_DIR/lib/clients.sh"
 # shellcheck source=../lib/panel.sh
 source "$ROOT_DIR/lib/panel.sh"
+# shellcheck source=../lib/certificates.sh
+source "$ROOT_DIR/lib/certificates.sh"
 # shellcheck source=../lib/release.sh
 source "$ROOT_DIR/lib/release.sh"
 
@@ -45,6 +47,9 @@ assert_false validate_client_name Varon
 assert_false validate_client_name 1client
 assert_true validate_panel_username panel-a1b2
 assert_false validate_panel_username Admin
+assert_true validate_email_address admin@example.test
+assert_false validate_email_address no-at-sign
+[[ $(certificate_file_for_host vpn.example.test) == '/etc/letsencrypt/live/vpn.example.test/fullchain.pem' ]]
 [[ $(normalize_cpu_architecture x86_64) == 'amd64' ]]
 [[ $(normalize_cpu_architecture aarch64) == 'arm64' ]]
 select_3xui_asset amd64

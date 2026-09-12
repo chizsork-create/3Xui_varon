@@ -100,6 +100,28 @@ map \$ssl_preread_server_name \$varon_sni_backend {
     default varon_web;
 }
 
+render_acme_http_vhost() {
+    local panel_host=$1 cover_root=$2
+
+    cat <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${panel_host};
+    server_tokens off;
+    root ${cover_root};
+
+    location ^~ /.well-known/acme-challenge/ {
+        try_files \$uri =404;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+EOF
+}
+
 upstream varon_reality {
     server 127.0.0.1:${reality_port};
 }

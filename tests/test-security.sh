@@ -49,4 +49,8 @@ stream_config=$(render_stream_config 'vpn.example.free-dns.tld' 'reality.example
 grep -Fqx '    reality.example.free-dns.tld varon_reality;' <<<"$stream_config"
 grep -Fqx '    server 127.0.0.1:7443;' <<<"$stream_config"
 
+acme_vhost=$(render_acme_http_vhost 'vpn.example.free-dns.tld' '/var/www/3xui-varon')
+grep -Fqx '    listen 80;' <<<"$acme_vhost"
+grep -Fqx '    location ^~ /.well-known/acme-challenge/ {' <<<"$acme_vhost"
+
 printf 'security tests passed\n'
