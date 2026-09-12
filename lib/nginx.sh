@@ -45,6 +45,21 @@ location = /${path_segment} {
     return 301 /${path_segment}/;
 }
 
+location ^~ /${path_segment}/ {
+    proxy_pass http://127.0.0.1:${panel_port};
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host \$host;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 1h;
+}
+EOF
+}
+
 render_ws_proxy_location() {
     local path_segment=$1 ws_port=$2
 
@@ -58,21 +73,6 @@ location ^~ /${path_segment} {
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
-    proxy_set_header Upgrade \$http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_read_timeout 1h;
-}
-EOF
-}
-
-location ^~ /${path_segment}/ {
-    proxy_pass http://127.0.0.1:${panel_port};
-    proxy_http_version 1.1;
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto https;
-    proxy_set_header X-Forwarded-Host \$host;
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
     proxy_read_timeout 1h;
