@@ -132,6 +132,7 @@ write_client_state() {
     {
         printf 'CLIENT_NAME=%q\n' "$VARON_CLIENT_NAME"
         printf 'CLIENT_SUB_ID=%q\n' "$VARON_CLIENT_SUB_ID"
+        printf 'SUBSCRIPTION_PATH=%q\n' "$VARON_SUBSCRIPTION_PATH"
         printf 'CLIENT_UUID=%q\n' "$VARON_CLIENT_UUID"
         printf 'CLIENT_TROJAN_PASSWORD=%q\n' "$VARON_CLIENT_TROJAN_PASSWORD"
     } >"$temporary_state"
