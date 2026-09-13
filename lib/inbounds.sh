@@ -11,24 +11,38 @@ build_sniffing_json() {
 }
 
 build_reality_inbound_payload() {
-    local remark=$1 tag=$2 listen_port=$3 reality_server_name=$4 reality_dest=$5
+    local remark=$1 tag=$2 listen_port=$3 reality_sni=$4 reality_dest=$5
     local private_key=$6 public_key=$7 short_id=$8
 
     validate_inbound_name "$tag" || die "Invalid inbound tag: $tag"
     validate_tcp_port "$listen_port" || die "Invalid Reality port"
-    [[ $reality_server_name != */* && $reality_dest != */* ]] || die "Invalid Reality endpoint"
+    [[ $reality_sni != */* && $reality_dest != */* ]] || die "Invalid Reality endpoint"
 
     jq --compact-output --null-input \
-        --arg remark "$remark" --arg tag "$tag" --arg server_name "$reality_server_name" \
+        --arg remark "$remark" --arg tag "$tag" --arg reality_sni "$reality_sni" \
         --arg dest "$reality_dest" --arg private_key "$private_key" --arg public_key "$public_key" --arg short_id "$short_id" \
         --argjson port "$listen_port" \
         --arg settings "$(jq -cn '{clients: [], decryption: "none"}')" \
         --arg stream_settings "$(jq -cn \
-            --arg server_name "$reality_server_name" --arg dest "$reality_dest" \
+            --arg reality_sni "$reality_sni" --arg dest "$reality_dest" \
             --arg private_key "$private_key" --arg public_key "$public_key" --arg short_id "$short_id" \
-            '{network: "tcp", security: "reality", tcpSettings: {acceptProxyProtocol: true}, realitySettings: {show: false, xver: 1, dest: $dest, serverNames: [$server_name], privateKey: $private_key, publicKey: $public_key, shortIds: [$short_id], settings: {publicKey: $public_key, fingerprint: "chrome", serverName: "", spiderX: "/"}}}')" \
+            '{network: "tcp", security: "reality", tcpSettings: {acceptProxyProtocol: true, header: {type: "none"}}, realitySettings: {show: false, xver: 0, target: $dest, serverNames: [$reality_sni], privateKey: $private_key, shortIds: [$short_id], settings: {publicKey: $public_key, fingerprint: "firefox", serverName: $reality_sni, spiderX: "/"}}}')" \
         --arg sniffing "$(build_sniffing_json)" \
         '{remark: $remark, enable: true, listen: "127.0.0.1", port: $port, protocol: "vless", tag: $tag, settings: $settings, streamSettings: $stream_settings, sniffing: $sniffing, subSortIndex: 10}'
+}
+
+build_reality_host_group_payload() {
+    local remark=$1 public_hostname=$2 reality_sni=$3
+    shift 3
+
+    (($# >= 1)) || die "At least one inbound ID is required for a Reality host group"
+    [[ $public_hostname != */* && $public_hostname != :* ]] || die "Invalid public hostname"
+    [[ $reality_sni != */* && $reality_sni != :* ]] || die "Invalid Reality SNI"
+
+    jq --compact-output --null-input \
+        --arg remark "$remark" --arg hostname "$public_hostname" --arg reality_sni "$reality_sni" \
+        '{inboundIds: [$ARGS.positional[] | tonumber], remark: $remark, hosts: [$hostname], port: 443, security: "reality", sni: $reality_sni, alpn: [], fingerprint: "firefox"}' \
+        --args "$@"
 }
 
 build_xhttp_inbound_payload() {

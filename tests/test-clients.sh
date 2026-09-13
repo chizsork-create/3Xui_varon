@@ -51,17 +51,17 @@ if xui_success_response <<<'{"success":false}'; then
     exit 1
 fi
 
-reality=$(build_reality_inbound_payload 'Reality' 'reality-first' 8443 'reality.example.test' 'www.cloudflare.com:443' 'private-key' 'a1b2c3d4')
+reality=$(build_reality_inbound_payload 'Reality' 'reality-first' 8443 'www.cloudflare.com' 'www.cloudflare.com:443' 'private-key' 'public-key' 'a1b2c3d4')
 xhttp=$(build_xhttp_inbound_payload 'XHTTP' 'xhttp-first' '/run/3xui-varon/xhttp.sock' 'vpn.example.test' 'abcdefgh' '/etc/letsencrypt/live/vpn/fullchain.pem' '/etc/letsencrypt/live/vpn/privkey.pem')
 trojan=$(build_trojan_grpc_inbound_payload 'Trojan gRPC' 'trojan-first' 1443 'trojanpath')
 tls_hosts=$(build_host_group_payload 'Public TLS' 'vpn.example.test' tls 2 3)
-reality_hosts=$(build_host_group_payload 'Public Reality' 'reality.example.test' same 1)
+reality_hosts=$(build_reality_host_group_payload 'Public Reality' 'vpn.example.test' 'www.cloudflare.com' 1)
 
-jq --exit-status -e '.protocol == "vless" and .port == 8443 and (.streamSettings | fromjson | .security == "reality") and (.streamSettings | fromjson | .tcpSettings.acceptProxyProtocol == true)' <<<"$reality" >/dev/null
+jq --exit-status -e '.protocol == "vless" and .port == 8443 and (.streamSettings | fromjson | .security == "reality") and (.streamSettings | fromjson | .tcpSettings.acceptProxyProtocol == true) and (.streamSettings | fromjson | .realitySettings.target == "www.cloudflare.com:443") and (.streamSettings | fromjson | .realitySettings.serverNames == ["www.cloudflare.com"]) and (.streamSettings | fromjson | .realitySettings.settings.serverName == "www.cloudflare.com") and (.streamSettings | fromjson | .realitySettings.settings.fingerprint == "firefox")' <<<"$reality" >/dev/null
 jq --exit-status -e '.listen == "/run/3xui-varon/xhttp.sock,0660" and .port == 0 and (.streamSettings | fromjson | .network == "xhttp") and (.streamSettings | fromjson | .xhttpSettings.mode == "packet-up")' <<<"$xhttp" >/dev/null
 jq --exit-status -e '.protocol == "trojan" and .listen == "127.0.0.1" and (.streamSettings | fromjson | .grpcSettings.serviceName == "trojanpath")' <<<"$trojan" >/dev/null
 jq --exit-status -e '.inboundIds == [2, 3] and .port == 443 and .security == "tls" and .sni == "vpn.example.test"' <<<"$tls_hosts" >/dev/null
-jq --exit-status -e '.inboundIds == [1] and .security == "same"' <<<"$reality_hosts" >/dev/null
+jq --exit-status -e '.inboundIds == [1] and .hosts == ["vpn.example.test"] and .port == 443 and .security == "reality" and .sni == "www.cloudflare.com" and .fingerprint == "firefox"' <<<"$reality_hosts" >/dev/null
 settings=$(build_subscription_settings_payload '{"webPort":2053,"subEnable":false}' 'vpn.example.test' 'SubPath01')
 jq --exit-status -e '.webListen == "127.0.0.1" and .subListen == "127.0.0.1" and .subPort == 2096 and .subURI == "https://vpn.example.test/SubPath01/"' <<<"$settings" >/dev/null
 generate_transport_identifiers

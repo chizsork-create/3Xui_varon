@@ -117,12 +117,12 @@ EOF
 }
 
 render_stream_config() {
-    local panel_host=$1 reality_host=$2 web_tls_port=$3 reality_port=$4
+    local panel_host=$1 reality_sni=$2 web_tls_port=$3 reality_port=$4
 
     cat <<EOF
 map \$ssl_preread_server_name \$varon_sni_backend {
     hostnames;
-    ${reality_host} varon_reality;
+    ${reality_sni} varon_reality;
     ${panel_host} varon_web;
     default varon_web;
 }
@@ -209,6 +209,14 @@ ensure_xhttp_runtime_directory() {
     install -d -o root -g www-data -m 2710 /run/3xui-varon
 }
 
+install_cover_site() {
+    local source_file=${VARON_COVER_SITE_FILE:-"$ROOT_DIR/assets/cover-site/index.html"}
+
+    [[ -r "$source_file" ]] || die "Cover site file is missing: $source_file"
+    install -d -o root -g root -m 0755 "$VARON_COVER_ROOT"
+    install -o root -g root -m 0644 "$source_file" "$VARON_COVER_ROOT/index.html"
+}
+
 ensure_nginx_stream_include() {
     local temporary_config
 
@@ -244,12 +252,13 @@ install_acme_http_vhost() {
 }
 
 install_nginx_proxy_stack() {
-    local panel_host=$1 reality_host=$2 certificate_file=$3 key_file=$4
+    local panel_host=$1 certificate_file=$2 key_file=$3
     local temporary_web temporary_stream
 
     require_root
     validate_tcp_port "$VARON_WEB_TLS_PORT" || die "Invalid Nginx TLS port"
     ensure_xhttp_runtime_directory
+    install_cover_site
     install -d -o root -g root -m 0755 /etc/nginx/stream-conf.d
     ensure_nginx_stream_include
 
@@ -260,7 +269,7 @@ install_nginx_proxy_stack() {
         "$VARON_PANEL_PATH" "$VARON_PANEL_INTERNAL_PORT" "$VARON_SUBSCRIPTION_PATH" \
         "$VARON_SUBSCRIPTION_INTERNAL_PORT" "$VARON_TROJAN_SERVICE" \
         "$VARON_TROJAN_INTERNAL_PORT" "$VARON_WS_PATH" "$VARON_WS_INTERNAL_PORT" >"$temporary_web"
-    render_stream_config "$panel_host" "$reality_host" "$VARON_WEB_TLS_PORT" \
+    render_stream_config "$panel_host" "$VARON_REALITY_SNI" "$VARON_WEB_TLS_PORT" \
         "$VARON_REALITY_INTERNAL_PORT" >"$temporary_stream"
     atomic_install_file "$temporary_web" "$VARON_NGINX_WEB_CONFIG" 0644
     atomic_install_file "$temporary_stream" "$VARON_NGINX_STREAM_CONFIG" 0644

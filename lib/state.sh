@@ -18,7 +18,7 @@ atomic_install_file() {
 }
 
 write_install_state() {
-    local base_domain=$1 panel_host=$2 reality_host=$3 ssh_port=$4
+    local base_domain=$1 panel_host=$2 ssh_port=$3
     local temporary_state
 
     temporary_state=$(mktemp)
@@ -26,7 +26,6 @@ write_install_state() {
         printf 'STATE_VERSION=1\n'
         printf 'BASE_DOMAIN=%q\n' "$base_domain"
         printf 'PANEL_HOST=%q\n' "$panel_host"
-        printf 'REALITY_HOST=%q\n' "$reality_host"
         printf 'SSH_PORT=%q\n' "$ssh_port"
     } >"$temporary_state"
     atomic_install_file "$temporary_state" "$VARON_STATE_FILE" 0600

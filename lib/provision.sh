@@ -6,6 +6,7 @@ VARON_TROJAN_INTERNAL_PORT=${VARON_TROJAN_INTERNAL_PORT:-1443}
 VARON_WS_INTERNAL_PORT=${VARON_WS_INTERNAL_PORT:-16666}
 VARON_XHTTP_SOCKET=${VARON_XHTTP_SOCKET:-/run/3xui-varon/xhttp.sock}
 VARON_REALITY_DEST=${VARON_REALITY_DEST:-www.cloudflare.com:443}
+VARON_REALITY_SNI=${VARON_REALITY_SNI:-www.cloudflare.com}
 
 generate_transport_identifiers() {
     VARON_XHTTP_PATH=$(generate_client_token 12)
@@ -47,7 +48,7 @@ write_transport_state() {
 }
 
 provision_default_transports() (
-    local panel_host=$1 reality_host=$2 certificate_file=$3 key_file=$4
+    local panel_host=$1 certificate_file=$2 key_file=$3
     local cookie_file response reality_id xhttp_id ws_id trojan_id client_payload
 
     validate_tcp_port "$VARON_REALITY_INTERNAL_PORT" || die "Invalid Reality internal port"
@@ -65,7 +66,7 @@ provision_default_transports() (
     trap 'rm -f -- "$cookie_file"' EXIT
 
     response=$(xui_api_post "$panel_host" "$VARON_PANEL_PATH" "$cookie_file" inbounds/add \
-        "$(build_reality_inbound_payload 'Reality' 'reality-varon' "$VARON_REALITY_INTERNAL_PORT" "$reality_host" "$VARON_REALITY_DEST" "$VARON_REALITY_PRIVATE_KEY" "$VARON_REALITY_PUBLIC_KEY" "$VARON_REALITY_SHORT_ID")")
+        "$(build_reality_inbound_payload 'Reality' 'reality-varon' "$VARON_REALITY_INTERNAL_PORT" "$VARON_REALITY_SNI" "$VARON_REALITY_DEST" "$VARON_REALITY_PRIVATE_KEY" "$VARON_REALITY_PUBLIC_KEY" "$VARON_REALITY_SHORT_ID")")
     reality_id=$(xui_response_object_id <<<"$response")
 
     response=$(xui_api_post "$panel_host" "$VARON_PANEL_PATH" "$cookie_file" inbounds/add \
@@ -83,7 +84,7 @@ provision_default_transports() (
     xui_api_post "$panel_host" "$VARON_PANEL_PATH" "$cookie_file" hosts/add \
         "$(build_host_group_payload 'public-tls' "$panel_host" tls "$xhttp_id" "$ws_id" "$trojan_id")" >/dev/null
     xui_api_post "$panel_host" "$VARON_PANEL_PATH" "$cookie_file" hosts/add \
-        "$(build_host_group_payload 'public-reality' "$reality_host" same "$reality_id")" >/dev/null
+        "$(build_reality_host_group_payload 'public-reality' "$panel_host" "$VARON_REALITY_SNI" "$reality_id")" >/dev/null
 
     client_payload=$(build_client_create_payload "$VARON_SHARED_CLIENT_JSON" \
         "$reality_id" "$xhttp_id" "$ws_id" "$trojan_id")

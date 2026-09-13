@@ -38,8 +38,8 @@ source "$ROOT_DIR/lib/subscription.sh"
 usage() {
     cat <<'EOF'
 Usage:
-  varon preflight --base-domain DOMAIN --panel-subdomain NAME [--reality-subdomain NAME]
-  varon install [--base-domain DOMAIN] [--panel-subdomain NAME] [--reality-subdomain NAME] \
+  varon preflight --base-domain DOMAIN --panel-subdomain NAME
+  varon install [--base-domain DOMAIN] [--panel-subdomain NAME] \
     [--email EMAIL|--no-email] [--ssh-port PORT] [--client-name NAME] [--yes]
 
 Examples:
@@ -47,7 +47,7 @@ Examples:
   varon install --base-domain example.free-dns.tld --panel-subdomain vpn --email you@example.net
 
 Install only supports a clean Ubuntu 24.04 server. It asks for the base domain,
-panel subdomain, REALITY subdomain and optionally a Let's Encrypt email when
+panel/subscription subdomain and optionally a Let's Encrypt email when
 values are not provided. It creates one shared subscription containing Reality, XHTTP and
 Trojan gRPC. Existing 3X-UI installations are never upgraded or overwritten.
 EOF
@@ -71,27 +71,25 @@ confirm_clean_install() {
 }
 
 run_install() {
-    local panel_host reality_host certificate_file certificate_key subscription_url
+    local panel_host certificate_file certificate_key subscription_url
 
     require_root
     prompt_if_missing base_domain 'Base domain (for example mydomain.free-dns.tld): '
     prompt_if_missing panel_subdomain 'Panel/subscription subdomain (for example vpn): '
-    prompt_if_missing reality_subdomain 'REALITY subdomain (for example reality): '
     if [[ $skip_certbot_email == false ]]; then
         prompt_if_missing certbot_email "Let's Encrypt email (leave blank to skip): "
     fi
     [[ -z $certbot_email ]] || validate_email_address "$certbot_email" || die "Invalid Let's Encrypt email"
     validate_client_name "$client_name" || die "Invalid client name"
     validate_tcp_port "$ssh_port" || die "Invalid SSH port"
-    validate_domain_inputs "$base_domain" "$panel_subdomain" "$reality_subdomain"
+    validate_domain_inputs "$base_domain" "$panel_subdomain"
     confirm_clean_install
     assert_clean_3xui_target
 
     panel_host=$(make_hostname "$base_domain" "$panel_subdomain")
-    reality_host=$(make_hostname "$base_domain" "$reality_subdomain")
     VARON_CERTBOT_EMAIL=$certbot_email
 
-    run_preflight "$base_domain" "$panel_subdomain" "$reality_subdomain"
+    run_preflight "$base_domain" "$panel_subdomain"
     install_required_packages
     configure_security_updates
     configure_fail2ban
@@ -117,11 +115,11 @@ run_install() {
     systemctl restart x-ui
     wait_for_local_panel "$VARON_PANEL_PATH"
 
-    install_nginx_proxy_stack "$panel_host" "$reality_host" "$certificate_file" "$certificate_key"
-    provision_default_transports "$panel_host" "$reality_host" "$certificate_file" "$certificate_key"
+    install_nginx_proxy_stack "$panel_host" "$certificate_file" "$certificate_key"
+    provision_default_transports "$panel_host" "$certificate_file" "$certificate_key"
     install_certificate_renew_hook
 
-    write_install_state "$base_domain" "$panel_host" "$reality_host" "$ssh_port"
+    write_install_state "$base_domain" "$panel_host" "$ssh_port"
     write_panel_state "$VARON_STATE_DIR/panel.env"
     write_client_state "$VARON_STATE_DIR/client.env"
     write_transport_state "$VARON_STATE_DIR/transports.env"
@@ -143,7 +141,6 @@ shift
 
 base_domain=""
 panel_subdomain=""
-    reality_subdomain="reality"
     certbot_email=""
 skip_certbot_email=false
 ssh_port="22"
@@ -158,10 +155,6 @@ while (($#)); do
             ;;
         --panel-subdomain)
             panel_subdomain=${2:?"--panel-subdomain requires a value"}
-            shift 2
-            ;;
-        --reality-subdomain)
-            reality_subdomain=${2:?"--reality-subdomain requires a value"}
             shift 2
             ;;
         --email)
@@ -198,7 +191,7 @@ case "$command_name" in
     preflight)
         require_value "--base-domain" "$base_domain"
         require_value "--panel-subdomain" "$panel_subdomain"
-        run_preflight "$base_domain" "$panel_subdomain" "$reality_subdomain"
+        run_preflight "$base_domain" "$panel_subdomain"
         ;;
     install)
         run_install

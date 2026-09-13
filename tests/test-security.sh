@@ -25,8 +25,7 @@ grep -qx 'findtime = 10m' "$jail_file"
 grep -qx 'bantime = 24h' "$jail_file"
 grep -qx 'ignoreip = 127.0.0.1/8 ::1' "$jail_file"
 
-write_install_state 'example.free-dns.tld' 'vpn.example.free-dns.tld' \
-    'reality.example.free-dns.tld' 22
+write_install_state 'example.free-dns.tld' 'vpn.example.free-dns.tld' 22
 [[ $(stat -c '%a' "$VARON_STATE_FILE") == '600' ]]
 grep -qx 'PANEL_HOST=vpn.example.free-dns.tld' "$VARON_STATE_FILE"
 
@@ -45,8 +44,8 @@ grep -Fqx '    proxy_pass http://127.0.0.1:2053;' <<<"$panel_location"
 grep -Fqx '    proxy_pass http://127.0.0.1:2096;' <<<"$subscription_location"
 grep -Fqx '    grpc_pass grpc://127.0.0.1:1443;' <<<"$trojan_location"
 
-stream_config=$(render_stream_config 'vpn.example.free-dns.tld' 'reality.example.free-dns.tld' 7443 8443)
-grep -Fqx '    reality.example.free-dns.tld varon_reality;' <<<"$stream_config"
+stream_config=$(render_stream_config 'vpn.example.free-dns.tld' 'www.cloudflare.com' 7443 8443)
+grep -Fqx '    www.cloudflare.com varon_reality;' <<<"$stream_config"
 grep -Fqx '    server 127.0.0.1:7443;' <<<"$stream_config"
 grep -Fqx '    proxy_protocol on;' <<<"$stream_config"
 
@@ -56,7 +55,7 @@ grep -Fqx '    location ^~ /.well-known/acme-challenge/ {' <<<"$acme_vhost"
 
 web_vhost=$(render_web_vhost 'vpn.example.free-dns.tld' 7443 '/cert.pem' '/key.pem' \
     '/var/www/3xui-varon' 'XhttpPath1' '/run/3xui-varon/xhttp.sock' 'PanelPath1' \
-    2053 'SubPath01' 2096 'TrojanSvc1' 1443)
+    2053 'SubPath01' 2096 'TrojanSvc1' 1443 'WsPath1' 16666)
 grep -Fqx '    listen 127.0.0.1:7443 ssl http2 proxy_protocol;' <<<"$web_vhost"
 grep -Fqx '    proxy_pass https://unix:/run/3xui-varon/xhttp.sock:;' <<<"$web_vhost"
 grep -Fqx '    grpc_pass grpc://127.0.0.1:1443;' <<<"$web_vhost"

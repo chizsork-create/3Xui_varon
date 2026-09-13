@@ -43,21 +43,18 @@ check_port_available() {
 }
 
 run_preflight() {
-    local base_domain=$1 panel_subdomain=$2 reality_subdomain=$3
-    local panel_host reality_host server_ip
+    local base_domain=$1 panel_subdomain=$2
+    local panel_host server_ip
 
-    validate_domain_inputs "$base_domain" "$panel_subdomain" "$reality_subdomain"
+    validate_domain_inputs "$base_domain" "$panel_subdomain"
     panel_host=$(make_hostname "$base_domain" "$panel_subdomain")
-    reality_host=$(make_hostname "$base_domain" "$reality_subdomain")
 
     info "Panel/subscription hostname: $panel_host"
-    info "REALITY hostname: $reality_host"
     check_ubuntu_2404
     command_exists curl || die "curl is required"
     server_ip=$(public_ipv4) || die "Unable to detect the public IPv4 address"
     ok "Public IPv4: $server_ip"
     check_hostname_points_to_server "$panel_host" "$server_ip"
-    check_hostname_points_to_server "$reality_host" "$server_ip"
     check_port_available 80
     check_port_available 443
     ok "Preflight passed. No changes were made."

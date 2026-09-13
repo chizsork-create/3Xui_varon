@@ -23,11 +23,8 @@ make_hostname() {
 }
 
 validate_domain_inputs() {
-    local base_domain=$1 panel_subdomain=$2 reality_subdomain=$3
+    local base_domain=$1 panel_subdomain=$2
 
     is_base_domain "$base_domain" || die "Invalid base domain: $base_domain"
     is_dns_label "$panel_subdomain" || die "Invalid panel subdomain: $panel_subdomain"
-    is_dns_label "$reality_subdomain" || die "Invalid REALITY subdomain: $reality_subdomain"
-    [[ ${panel_subdomain,,} != ${reality_subdomain,,} ]] \
-        || die "Panel and REALITY subdomains must differ"
 }
