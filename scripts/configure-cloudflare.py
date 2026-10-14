@@ -46,7 +46,23 @@ server {{
 """
 
 
-def web_config(hostname, panel_path, panel_port, path):
+def ws_location(path, port):
+    return f"""    location = {path} {{
+        proxy_pass http://127.0.0.1:{port};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_buffering off;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+        add_header Cache-Control "no-store" always;
+    }}
+"""
+
+
+def web_config(hostname, panel_path, panel_port, path, ws_routes=()):
+    extra_locations = "".join(ws_location(route["path"], route["port"]) for route in ws_routes)
     return f"""# Managed by 3Xui Varon configure-cloudflare.py
 server {{
     listen 443 ssl http2;
@@ -86,7 +102,7 @@ server {{
         proxy_read_timeout 1h;
         add_header Cache-Control "no-store" always;
     }}
-    location / {{
+{extra_locations}    location / {{
         default_type text/html;
         add_header Cache-Control "no-store" always;
         return 200 '<!doctype html><html lang="en"><title>Service</title><h1>Service online</h1></html>';
@@ -120,11 +136,12 @@ def checked_cdn_response(response):
 def check_generated(config, uuid):
     """Inspect actual core config: panel normalization can change client flows."""
     cdn = next((i for i in config["inbounds"] if i.get("port") == 16666), None)
-    if (not cdn or cdn.get("listen") != "127.0.0.1"
-            or len(cdn["settings"].get("clients", [])) != 1):
+    expected = {uuid} if isinstance(uuid, str) else set(uuid)
+    if not cdn or cdn.get("listen") != "127.0.0.1":
         raise RuntimeError("Generated XHTTP listener/client differs from the expected topology")
-    client = cdn["settings"]["clients"][0]
-    if client["id"] != uuid or client.get("flow", ""):
+    clients = cdn["settings"].get("clients", [])
+    if ({client["id"] for client in clients} != expected or len(clients) != len(expected)
+            or any(client.get("flow", "") for client in clients)):
         raise RuntimeError("Generated XHTTP client identity/flow changed")
 
 
@@ -160,8 +177,7 @@ def set_enabled(api, inbound_id, enabled):
         raise RuntimeError("Panel did not apply the inbound enable flag")
 
 
-def ensure_public_host(api, inbound_id, hostname, path):
-    remark = "Cloudflare public TLS"
+def ensure_public_host(api, inbound_id, hostname, path, remark="Cloudflare public TLS", alpn=("h2", "http/1.1")):
     groups = [g for g in api("hosts/list") if g.get("remark") == remark]
     if groups:
         if len(groups) != 1:
@@ -177,7 +193,7 @@ def ensure_public_host(api, inbound_id, hostname, path):
         return group["groupId"]
     created = api("hosts/add", {"inboundIds": [inbound_id], "remark": remark,
         "hosts": [hostname], "port": 443, "security": "tls", "sni": hostname,
-        "hostHeader": hostname, "path": path, "alpn": ["h2", "http/1.1"],
+        "hostHeader": hostname, "path": path, "alpn": list(alpn),
         "fingerprint": "chrome", "allowInsecure": False})
     return created[0]["groupId"]
 
@@ -228,9 +244,20 @@ def main():
         path = "/" + secrets.token_hex(18)
     source = direct if direct else cdn
     clients = bootstrap.object_value(source["settings"]).get("clients", [])
-    if len(clients) != 1:
+    if not clients or (not old_state and len(clients) != 1):
         parser.error("Expected exactly one existing client")
     client = clients[0]
+    if old_state:
+        old_link = (STATE.parent / "cloudflare-main.txt").read_text().strip()
+        primary_id = urllib.parse.urlsplit(old_link).username
+        client = next((item for item in clients if item["id"] == primary_id), None)
+        if client is None:
+            parser.error("Primary CDN client is missing; refusing to replace its identity")
+    users_state = STATE.parent / "users.json"
+    ws_routes = json.loads(users_state.read_text())["transports"] if users_state.exists() else []
+    if any(not re.fullmatch(r"/[a-f0-9]{36}", route["path"])
+           or route["port"] not in (16667, 16668) for route in ws_routes):
+        parser.error("Invalid managed WebSocket routes")
     panel_path = credentials["XUI_WEB_BASE_PATH"].strip("/")
     if not re.fullmatch(r"[A-Za-z0-9_-]+", panel_path) or not re.fullmatch(r"/[a-f0-9]{36}", path):
         parser.error("Invalid panel/XHTTP path")
@@ -265,13 +292,13 @@ def main():
         bootstrap.run("systemctl", "reload", "nginx")
         bootstrap.run("certbot", "certonly", "--webroot", "-w", str(ROOT), "-d", args.hostname,
                       "--non-interactive", "--agree-tos", "--register-unsafely-without-email", "--keep-until-expiring")
-        bootstrap.write_private(WEB, web_config(args.hostname, panel_path, int(credentials["XUI_PANEL_PORT"]), path))
+        bootstrap.write_private(WEB, web_config(args.hostname, panel_path, int(credentials["XUI_PANEL_PORT"]), path, ws_routes))
         bootstrap.run("nginx", "-t")
         if not cdn:
             cdn = api("inbounds/add", xhttp_payload(path))
             created_id = cdn["id"]
         bound = bootstrap.object_value(cdn["settings"]).get("clients", [])
-        if bound and (len(bound) != 1 or bound[0]["id"] != client["id"]):
+        if bound and not any(item["id"] == client["id"] for item in bound):
             raise RuntimeError("CDN inbound belongs to another client")
         if not bound:
             api("clients/" + urllib.parse.quote(client["email"], safe="") + "/attach", {"inboundIds": [cdn["id"]]})
@@ -280,7 +307,8 @@ def main():
             set_enabled(api, direct["id"], False)
         bootstrap.run("systemctl", "restart", "x-ui")
         bootstrap.wait_panel(credentials)
-        check_generated(json.loads(Path("/usr/local/x-ui/bin/config.json").read_text()), client["id"])
+        check_generated(json.loads(Path("/usr/local/x-ui/bin/config.json").read_text()),
+                        [item["id"] for item in clients])
         if not old_state:
             wait_port_free(443)
         bootstrap.run("systemctl", "reload", "nginx")
