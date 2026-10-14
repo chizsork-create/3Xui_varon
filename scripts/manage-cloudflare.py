@@ -58,6 +58,17 @@ def new_client(name):
             "totalGB": 0, "expiryTime": 0, "limitIp": 0, "tgId": 0, "reset": 0}
 
 
+def subscription_settings(settings, hostname, path):
+    cdn.subscription_location(path)  # Validate before updating API settings.
+    result = dict(settings)
+    result.update(subEnable=True, subListen="127.0.0.1", subPort=2096,
+        subPath=path, subDomain=hostname, subCertFile="", subKeyFile="",
+        subURI="https://" + hostname + path, subJsonEnable=True,
+        subJsonAutoDetect=False, subJsonAlwaysArray=True,
+        subJsonPath=path + "json/", subJsonURI="https://" + hostname + path + "json/")
+    return result
+
+
 def ws_link(record, hostname, route):
     protocol = route["protocol"]
     credential = record["uuid"] if protocol == "vless" else record["password"]
@@ -107,6 +118,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--users", required=True, nargs="+",
                         help="First name is the owner of the existing bootstrap identity")
+    parser.add_argument("--enable-subscriptions", action="store_true",
+                        help="Publish each user's base64 and JSON subscriptions over verified HTTPS")
     args = parser.parse_args()
     if os.geteuid() != 0 or not valid_names(args.users):
         parser.error("Run as root; use unique ASCII names of 1-32 characters")
@@ -140,6 +153,11 @@ def main():
             {"tag": "cloudflare-trojan-ws", "port": 16668, "protocol": "trojan",
              "label": "Trojan-WS", "path": "/" + secrets.token_hex(18)}]}
     routes = managed["transports"]
+    if args.enable_subscriptions and not managed.get("subscription_path"):
+        managed["subscription_path"] = "/" + secrets.token_hex(18) + "/"
+    subscription_path = managed.get("subscription_path")
+    if subscription_path:
+        cdn.subscription_location(subscription_path)
     expected = {("cloudflare-vless-ws", 16667, "vless"), ("cloudflare-trojan-ws", 16668, "trojan")}
     if (len(routes) != 2 or {(r["tag"], r["port"], r["protocol"]) for r in routes} != expected
             or any(not re.fullmatch(r"/[a-f0-9]{36}", r["path"]) for r in routes)):
@@ -177,8 +195,10 @@ def main():
         cdn.ensure_public_host(api, route["id"], hostname, route["path"],
                               remark="Cloudflare " + route["label"], alpn=("http/1.1",))
     try:
+        if subscription_path:
+            api("setting/update", subscription_settings(api("setting/all", {}), hostname, subscription_path))
         b.write_private(cdn.WEB, cdn.web_config(hostname, credentials["XUI_WEB_BASE_PATH"].strip("/"),
-                                               int(credentials["XUI_PANEL_PORT"]), state["path"], routes))
+                                               int(credentials["XUI_PANEL_PORT"]), state["path"], routes, subscription_path))
         b.run("nginx", "-t")
         b.run("systemctl", "restart", "x-ui")
         b.wait_panel(credentials)
@@ -197,6 +217,9 @@ def main():
         links = [xhttp + "#" + urllib.parse.quote(record["email"] + "-VLESS-XHTTP"),
                  *(ws_link(record, hostname, route) for route in routes)]
         b.write_private(exports / (record["email"] + ".txt"), "\n".join(links) + "\n")
+        if subscription_path:
+            url = "https://" + hostname + subscription_path + urllib.parse.quote(record["subId"], safe="")
+            b.write_private(exports / (record["email"] + "-subscription.txt"), url + "\n")
     managed["users"] = [record["email"] for record in records]
     b.write_private(STATE, json.dumps(managed, indent=2) + "\n")
     state["client_email"] = args.users[0]

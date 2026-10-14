@@ -13,6 +13,19 @@ spec.loader.exec_module(users)
 
 
 class CloudflareUsersTests(unittest.TestCase):
+    def test_subscription_uses_loopback_https_and_retains_unrelated_settings(self):
+        path = "/" + "a" * 36 + "/"
+        settings = users.subscription_settings({"webPort": 2053}, "vpn.example.com", path)
+        self.assertEqual(settings["webPort"], 2053)
+        self.assertEqual(settings["subListen"], "127.0.0.1")
+        self.assertEqual(settings["subURI"], "https://vpn.example.com" + path)
+        self.assertFalse(settings["subJsonAutoDetect"])
+        config = users.cdn.web_config("vpn.example.com", "panel", 2053, "/xhttp", subscription_path=path)
+        self.assertIn("proxy_pass http://127.0.0.1:2096;", config)
+        self.assertIn("location ^~ " + path, config)
+        with self.assertRaises(ValueError):
+            users.subscription_settings({}, "vpn.example.com", "/sub;evil/")
+
     def setUp(self):
         self.route = {"tag": "cloudflare-trojan-ws", "port": 16668, "protocol": "trojan",
                       "path": "/" + "a" * 36, "label": "Trojan-WS"}

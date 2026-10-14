@@ -61,8 +61,26 @@ def ws_location(path, port):
 """
 
 
-def web_config(hostname, panel_path, panel_port, path, ws_routes=()):
+def subscription_location(path):
+    if not re.fullmatch(r"/[a-f0-9]{36}/", path):
+        raise ValueError("Invalid managed subscription path")
+    return f"""    location ^~ {path} {{
+        proxy_pass http://127.0.0.1:2096;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Connection "";
+        proxy_cache off;
+        add_header Cache-Control "no-store" always;
+    }}
+"""
+
+
+def web_config(hostname, panel_path, panel_port, path, ws_routes=(), subscription_path=None):
     extra_locations = "".join(ws_location(route["path"], route["port"]) for route in ws_routes)
+    if subscription_path:
+        extra_locations += subscription_location(subscription_path)
     return f"""# Managed by 3Xui Varon configure-cloudflare.py
 server {{
     listen 443 ssl http2;
@@ -255,6 +273,7 @@ def main():
             parser.error("Primary CDN client is missing; refusing to replace its identity")
     users_state = STATE.parent / "users.json"
     ws_routes = json.loads(users_state.read_text())["transports"] if users_state.exists() else []
+    subscription_path = json.loads(users_state.read_text()).get("subscription_path") if users_state.exists() else None
     if any(not re.fullmatch(r"/[a-f0-9]{36}", route["path"])
            or route["port"] not in (16667, 16668) for route in ws_routes):
         parser.error("Invalid managed WebSocket routes")
@@ -292,7 +311,7 @@ def main():
         bootstrap.run("systemctl", "reload", "nginx")
         bootstrap.run("certbot", "certonly", "--webroot", "-w", str(ROOT), "-d", args.hostname,
                       "--non-interactive", "--agree-tos", "--register-unsafely-without-email", "--keep-until-expiring")
-        bootstrap.write_private(WEB, web_config(args.hostname, panel_path, int(credentials["XUI_PANEL_PORT"]), path, ws_routes))
+        bootstrap.write_private(WEB, web_config(args.hostname, panel_path, int(credentials["XUI_PANEL_PORT"]), path, ws_routes, subscription_path))
         bootstrap.run("nginx", "-t")
         if not cdn:
             cdn = api("inbounds/add", xhttp_payload(path))
