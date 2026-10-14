@@ -189,6 +189,8 @@ def main():
     if not args.target or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-" for c in args.target):
         parser.error("Target must be a DNS hostname")
     os.umask(0o077)
+    if (STATE.parent / "cloudflare.json").exists():
+        parser.error("CDN is already configured; use configure-cloudflare.py for further updates")
     STATE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     old_state = json.loads(STATE.read_text()) if STATE.exists() else None
     if old_state and (old_state["server_ip"] != str(args.server_ip) or old_state["direct_port"] != args.direct_port):

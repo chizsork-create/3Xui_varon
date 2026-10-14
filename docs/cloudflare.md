@@ -1,0 +1,41 @@
+# Второй этап: Cloudflare XHTTP
+
+Миграция одиночного клиента из bootstrap-direct.py на VLESS/XHTTP через
+Cloudflare. UUID сохраняется, прямой REALITY удаляется после проверки HTTPS.
+Повторный запуск сохраняет UUID и случайный XHTTP path.
+
+Предварительно:
+
+- домен делегирован на NS Cloudflare;
+- A-запись vpn указывает на IPv4 сервера, Proxy status — Proxied;
+- SSL/TLS — Full (strict); Universal SSL активен;
+- входящие TCP 80/443 разрешены, сторонний HTTPS-сервер не занимает 443.
+
+Команда из корня репозитория:
+
+    sudo python3 scripts/configure-cloudflare.py \
+      --hostname vpn.example.com --server-ip YOUR_SERVER_IPV4 --remove-direct
+
+Скрипт устанавливает Nginx и Certbot, получает сертификат Let's Encrypt через
+HTTP-01, включает certbot.timer и reload hook. Панель остаётся на loopback,
+Nginx публикует её по исходному случайному пути через HTTPS. XHTTP backend
+слушает только 127.0.0.1:16666, TLS завершается на Nginx. Транспорт packet-up,
+проверка сертификатов включена; Vision для XHTTP не используется.
+Host group задаёт публичные домен, порт 443 и TLS для ссылок/QR панели,
+вместо внутреннего порта backend. Повторный запуск не дублирует группу.
+Fail2ban и firewall не изменяются.
+
+До изменения конфигурации создаётся SQLite backup. При ошибке до удаления
+REALITY восстанавливаются собственные файлы Nginx и прежний direct inbound.
+Удаление выполняется последним; ошибку удаления можно повторить запуском той же
+команды. Чужие конфигурации не перезаписываются.
+
+Состояние и ссылка импорта: /etc/3xui-varon/cloudflare.json и
+/etc/3xui-varon/cloudflare-main.txt, права 600. Устаревший direct-main.txt удаляется.
+После миграции bootstrap-direct.py отказывается менять эту установку.
+
+Проверки скрипта: python3 -m unittest discover -s tests -v.
+HTTPS health проверяется напрямую с валидным сертификатом и через Cloudflare
+(заголовок CF-Ray плюс ответ своего origin). Это не заменяет проверку реального
+VLESS-трафика и HAPP через сеть пользователя. Доступность Cloudflare в РФ
+зависит от оператора; CDN не гарантирует обход фильтрации.
