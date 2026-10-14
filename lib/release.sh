@@ -52,7 +52,7 @@ download_3xui_release() {
     local destination=$1 architecture
     command_exists curl || die "curl is required"
     command_exists sha256sum || die "sha256sum is required"
-    architecture=$(normalize_cpu_architecture)
+    architecture=$(normalize_cpu_architecture "$(uname -m)")
     select_3xui_asset "$architecture"
 
     curl --fail --location --proto '=https' --tlsv1.2 --silent --show-error \

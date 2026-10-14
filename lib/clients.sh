@@ -116,11 +116,16 @@ create_default_client_material() {
     VARON_CLIENT_SUB_ID=$(generate_client_token 8)
     VARON_CLIENT_UUID=$(generate_client_uuid)
     VARON_CLIENT_TROJAN_PASSWORD=$(generate_client_token 18)
+    # Public result consumed by provision.sh after this library is sourced.
+    # shellcheck disable=SC2034
     VARON_SHARED_CLIENT_JSON=$(build_shared_client_json \
         "$VARON_CLIENT_UUID" "$VARON_CLIENT_TROJAN_PASSWORD" \
         "$VARON_CLIENT_NAME" "$VARON_CLIENT_SUB_ID")
+    # Legacy public results retained for callers sourcing this library.
+    # shellcheck disable=SC2034
     VARON_VLESS_CLIENT_JSON=$(build_vless_client_json \
         "$VARON_CLIENT_UUID" "$VARON_CLIENT_NAME" "$VARON_CLIENT_SUB_ID")
+    # shellcheck disable=SC2034
     VARON_TROJAN_CLIENT_JSON=$(build_trojan_client_json \
         "$VARON_CLIENT_TROJAN_PASSWORD" "$VARON_CLIENT_NAME" "$VARON_CLIENT_SUB_ID")
 }

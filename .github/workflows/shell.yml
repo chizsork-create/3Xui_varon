@@ -18,7 +18,7 @@ jobs:
         run: |
           while IFS= read -r file; do bash -n "$file"; done < <(find bin lib tests -type f \( -name '*.sh' -o -path 'bin/varon' \))
       - name: ShellCheck
-        run: shellcheck --external-sources bin/varon lib/*.sh tests/*.sh
+        run: shellcheck --external-sources --source-path=SCRIPTDIR bin/varon lib/*.sh tests/*.sh
       - name: Unit tests
         run: |
           for test_file in tests/test-*.sh; do
